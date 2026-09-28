@@ -9,7 +9,7 @@ character = load_image('character.png')
 def move_circle():
     print('CIRCLE')
 
-    for degree in range(0,360,5):
+    for degree in range(0,360,4):
         theta = math.radians(degree)
         x = 400 + 180 * math.cos(theta)
         y = 300 + 180 * math.sin(theta)
