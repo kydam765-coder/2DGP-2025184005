@@ -57,7 +57,9 @@ def move_triangle():
         draw_character(x, 150)
 
     for t in range(0, 101):
-        pass
+        x = 750 - 350 * t / 100
+        y = 150 + 400 * t / 100
+        draw_character(x, y)
 
     for i in range(0, 101):
         pass
