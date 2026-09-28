@@ -25,10 +25,14 @@ def move_rectangle():
     move_right()
     move_bottom()
     move_left()
-    pass
 
 def move_top():
-    pass
+    print('TOP')
+    for x in range(50, 750, 5):
+        clear_canvas()
+        character.draw(x,550)
+        update_canvas()
+        delay(0.05)
 
 def move_right():
     pass
