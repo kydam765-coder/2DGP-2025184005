@@ -46,8 +46,9 @@ def move_bottom():
         draw_character(x, 150)
 
 def move_left():
-    pass
-
+    print('LEFT')
+    for y in range(150, 551, 5):
+        draw_character(50, y)
 
 
 def move_triangle():
