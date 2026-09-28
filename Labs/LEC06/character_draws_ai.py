@@ -31,22 +31,22 @@ def draw_rectangle():
 
 def move_top():
     print('TOP')
-    for x in range(50, 750, 5):
+    for x in range(50, 750, MOVE_STEP):
         draw_character(x, 550)
 
 def move_right():
     print('RIGHT')
-    for y in range(550, 50, -5):
+    for y in range(550, 50, -MOVE_STEP):
         draw_character(750, y)
 
 def move_bottom():
     print('BOTTOM')
-    for x in range(750, 50, -5):
+    for x in range(750, 50, -MOVE_STEP):
         draw_character(x, 50)
 
 def move_left():
     print('LEFT')
-    for y in range(50, 550, 5):
+    for y in range(50, 550, MOVE_STEP):
         draw_character(50, y)
 
 def move_line(x1, y1, x2, y2, step):
