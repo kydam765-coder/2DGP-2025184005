@@ -53,7 +53,7 @@ def move_left():
 
 def move_triangle():
     print('TRIANGLE')
-    for x in range(50, 701, 5):
+    for x in range(50, 751, 5):
         draw_character(x, 150)
 
 
