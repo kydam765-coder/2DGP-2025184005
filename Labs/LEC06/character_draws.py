@@ -43,7 +43,7 @@ def move_right():
 def move_bottom():
     print('BOTTOM')
     for x in range(750, 49, -5):
-        draw_character(x, 130)
+        draw_character(x, 140)
 
 def move_left():
     print('LEFT')
