@@ -56,6 +56,13 @@ def move_triangle():
     for x in range(50, 751, 5):
         draw_character(x, 150)
 
+    for t in range(0, 101):
+        pass
+
+    for i in range(0, 101):
+        pass
+
+
 
 while True:
     move_circle()
