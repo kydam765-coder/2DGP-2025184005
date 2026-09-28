@@ -14,10 +14,7 @@ def move_circle():
         x = 400 + 200 * math.cos(theta)
         y = 300 + 200 * math.sin(theta)
 
-        clear_canvas()
-        character.draw(x,y)
-        update_canvas()
-        delay(0.05)
+        draw_character(x, y)
     
 def move_rectangle():
     print('RECTANGLE')
@@ -29,10 +26,14 @@ def move_rectangle():
 def move_top():
     print('TOP')
     for x in range(50, 750, 5):
-        clear_canvas()
-        character.draw(x,550)
-        update_canvas()
-        delay(0.05)
+        draw_character(x, 550)
+
+def draw_character(x, y):
+    clear_canvas()
+    character.draw(x, y)
+    update_canvas()
+    delay(0.05)
+
 
 def move_right():
     pass
