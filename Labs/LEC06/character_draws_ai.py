@@ -3,13 +3,16 @@ from pico2d import *
 
 open_canvas()
 
+MOVE_STEP = 5
+DRAW_DELAY = 0.02
+
 character = load_image('character.png')
 
 def draw_character(x, y):
     clear_canvas()
     character.draw(x, y)
     update_canvas()
-    delay(0.02)
+    delay(DRAW_DELAY)
 
 def draw_circle():
     print('CIRCLE')
