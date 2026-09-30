@@ -105,8 +105,8 @@ def default_pose(**overrides):
         'lean': 0,        # 몸통 좌우 이동(달리기/공격 기울기)
         'arm_front': (4, 5),   # 앞쪽 팔 끝점 (dx, dy) - 어깨 기준
         'arm_back': (-4, 5),   # 뒤쪽 팔 끝점
-        'foot_front': (2, 0),  # 앞쪽 발 위치 (dx, dy)
-        'foot_back': (-2, 0),  # 뒤쪽 발 위치
+        'foot_front': (4, 0),  # 앞쪽 발 위치 (dx, dy)
+        'foot_back': (-4, 0),  # 뒤쪽 발 위치
         'leg': 0,         # 다리 길이(점프할 때 늘어난다)
         'eye': 'open',    # open / blink / angry
         'mouth': 'smile',  # smile / open / flat
@@ -217,3 +217,28 @@ def draw_hair(frame, pose):
     draw.polygon([(cx - 2 + sway, y0 - 2), (cx + sway, y0 - 5),
                   (cx + 2 + sway, y0 - 2)], fill=HAIR)
     return frame
+
+
+def draw_arm(draw, pose, side, tip):
+    """팔을 어깨에서 tip까지 뻗고, 끝에 주먹을 둔다. side: -1=뒤쪽, 1=앞쪽."""
+    cx, y0, y1, hw = body_geom(pose)
+    sx = cx + side * (hw - 1)
+    sy = y0 + 20
+    tx, ty = sx + tip[0], sy + tip[1]
+    limb(draw, sx, sy, tx, ty, YELLOW, width=4)
+    ellipse(draw, tx, ty, 2, 2, fill=YELLOW, outline=OUTLINE)
+    return draw
+
+
+def draw_foot(draw, pose, offset):
+    """다리와 검은 신발을 그린다. offset: 발 중심의 (dx, dy)."""
+    cx, y0, y1, hw = body_geom(pose)
+    x = cx + offset[0]
+    foot_y = GROUND - 4 - pose['leg'] + offset[1]
+    if foot_y > y1:
+        limb(draw, x, y1 - 1, x, foot_y + 1, YELLOW, width=3)
+    draw.rounded_rectangle([x - 3, foot_y, x + 3, foot_y + 4],
+                           radius=1, fill=SHOE, outline=OUTLINE)
+    draw.rounded_rectangle([x - 3, foot_y, x + 3, foot_y + 1],
+                           radius=1, fill=SHOE_DARK)
+    return draw
