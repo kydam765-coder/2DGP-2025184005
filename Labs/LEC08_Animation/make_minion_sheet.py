@@ -11,7 +11,7 @@
 선명한 픽셀 스프라이트를 얻는다.
 """
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageDraw
 
 # 시트 / 셀 규격
 COLS = 8
@@ -95,4 +95,75 @@ def limb(draw, x0, y0, x1, y1, fill, outline=OUTLINE, width=4):
 def clip_to(frame, mask):
     """frame에 mask(흰색=보존) 영역만 남긴다."""
     frame.putalpha(ImageChops.multiply(frame.getchannel('A'), mask))
+    return frame
+
+
+def default_pose(**overrides):
+    """프레임 하나의 몸 상태. 필요에 따라 값을 덮어쓴다."""
+    pose = {
+        'body_dy': 0,     # 몸통 상하 이동
+        'lean': 0,        # 몸통 좌우 이동(달리기/공격 기울기)
+        'arm_front': (4, 5),   # 앞쪽 팔 끝점 (dx, dy) - 어깨 기준
+        'arm_back': (-4, 5),   # 뒤쪽 팔 끝점
+        'foot_front': (2, 0),  # 앞쪽 발 위치 (dx, dy)
+        'foot_back': (-2, 0),  # 뒤쪽 발 위치
+        'leg': 0,         # 다리 길이(점프할 때 늘어난다)
+        'eye': 'open',    # open / blink / angry
+        'mouth': 'smile',  # smile / open / flat
+        'brow': False,    # 눈썹(화남 표현)
+        'hair_sway': 0,   # 머리카락 흔들림
+    }
+    pose.update(overrides)
+    return pose
+
+
+def body_geom(pose):
+    """현재 자세의 몸통 기하 정보 (중심x, 위y, 아래y, 반너비)."""
+    return (BODY_CX + pose['lean'],
+            BODY_TOP + pose['body_dy'],
+            BODY_BOTTOM + pose['body_dy'],
+            BODY_HW)
+
+
+def body_mask(pose):
+    """몸통 영역만 흰색인 마스크를 만든다(얼굴/옷 디테일 자르기용)."""
+    cx, y0, y1, hw = body_geom(pose)
+    mask = Image.new('L', (GRID_W, GRID_H), 0)
+    capsule(ImageDraw.Draw(mask), cx, y0, y1, hw, fill=255)
+    return mask
+
+
+def draw_body(frame, pose):
+    """노란 캡슐 몸통과 좌우 음영을 그린다."""
+    draw = ImageDraw.Draw(frame)
+    cx, y0, y1, hw = body_geom(pose)
+    capsule(draw, cx, y0, y1, hw, fill=YELLOW, outline=OUTLINE)
+    capsule(draw, cx + 3, y0 + 3, y1 - 2, hw - 3, fill=YELLOW_DARK)
+    capsule(draw, cx - 5, y0 + 5, y1 - 7, 2, fill=YELLOW_LIGHT)
+    return frame
+
+
+def draw_overalls(frame, pose):
+    """파란 Overall(바지), 앞치마, 어깨끈, 단추를 그린다.
+
+    바지 부분은 몸통 마스크로 잘라서 몸통 곡선을 그대로 따라가게 한다.
+    """
+    cx, y0, y1, hw = body_geom(pose)
+    waist = y0 + 20
+
+    layer = new_frame()
+    draw = ImageDraw.Draw(layer)
+    box(draw, cx - hw, waist, cx + hw, y1 + 4, fill=OVERALL)
+    box(draw, cx - hw, y1 - 5, cx + hw, y1 + 4, fill=OVERALL_DARK)
+    for sx in (-6, 3):
+        box(draw, cx + sx, y0 + 6, cx + sx + 3, y0 + 16,
+            fill=OVERALL, outline=OVERALL_DARK)
+    box(draw, cx - 5, y0 + 15, cx + 5, waist + 2,
+        fill=OVERALL, outline=OVERALL_DARK)
+    box(draw, cx - 3, y0 + 19, cx + 3, waist + 1,
+        fill=OVERALL, outline=OVERALL_DARK)
+    ellipse(draw, cx, y0 + 17, 2, 2, fill=BUTTON)
+    clip_to(layer, body_mask(pose))
+
+    frame.alpha_composite(layer)
     return frame
