@@ -7,11 +7,14 @@ minion_sheet.png(8열 x 5행, 셀 200x200)의 각 행에 담긴 애니메이션�
 - 각 애니메이션은 5회 반복한 뒤 1초 동안 멈춘다.
 - 캐릭터는 3배 확대해 화면의 절반 이상을 차지한다.
 
-실행: python animation_viewer.py
+실행:
+    python animation_viewer.py              # 5종을 모두 재생
+    python animation_viewer.py walk jump    # 지정한 애니메이션만 재생
 (스프라이트 시트와 라벨은 make_minion_sheet.py, make_labels.py로 만든다)
 """
 
 import os
+import sys
 
 import pico2d
 
@@ -55,12 +58,30 @@ if not os.path.exists(SHEET_FILE):
     raise SystemExit('%s 이(가) 없습니다. python make_minion_sheet.py 를 먼저 실행하세요.'
                      % SHEET_FILE)
 
+
+def select_animations(names):
+    """인자로 지정한 애니메이션만 시트 순서대로 골라낸다.
+
+    인자가 없으면 5종을 모두 재생한다. 지정한 이름이 없으면 안내하고 종료한다.
+    """
+    if not names:
+        return ANIMATIONS
+    table = dict((name, row) for row, name in ANIMATIONS)
+    unknown = [name for name in names if name not in table]
+    if unknown:
+        raise SystemExit('없는 애니메이션: %s\n사용 가능: %s'
+                         % (', '.join(unknown), ', '.join(table)))
+    return [(row, name) for row, name in ANIMATIONS if name in names]
+
+
+animations = select_animations(sys.argv[1:])
+
 pico2d.open_canvas(CANVAS_WIDTH, CANVAS_HEIGHT)
 sheet = pico2d.load_image(SHEET_FILE)
 
 # 재생 중인 애니메이션 이름을 표시할 라벨 이미지(없으면 표시하지 않는다)
 labels = {}
-for row, name in ANIMATIONS:
+for row, name in animations:
     label_path = os.path.join(LABEL_DIR, name + '.png')
     if os.path.exists(label_path):
         labels[name] = pico2d.load_image(label_path)
@@ -106,9 +127,9 @@ def draw_frame(row, frame, name='', repeat=0):
     pico2d.update_canvas()
 
 
-# 5종 애니메이션을 순서대로 무한 반복한다.
+# 선택한 애니메이션을 순서대로 무한 반복한다.
 while True:
-    for row, name in ANIMATIONS:
+    for row, name in animations:
         for repeat in range(REPEAT_COUNT):
             for frame in range(FRAMES_PER_ROW):
                 draw_frame(row, frame, name, repeat)
