@@ -28,4 +28,16 @@ ANIMATIONS = [
     (3, '공격'),
 ]
 
+
+def draw_frame(anim_row, frame):
+    pico2d.clear_canvas()
+    sheet.clip_draw(
+        frame * FRAME_WIDTH, anim_row * FRAME_HEIGHT,
+        FRAME_WIDTH, FRAME_HEIGHT,
+        CENTER_X, CENTER_Y,
+        CHARACTER_WIDTH, CHARACTER_HEIGHT
+    )
+    pico2d.update_canvas()
+
+
 pico2d.close_canvas()
