@@ -40,4 +40,17 @@ def draw_frame(anim_row, frame):
     pico2d.update_canvas()
 
 
+# 애니메이션 하나는 5회 반복 후 1초 정지
+REPEAT_COUNT = 5
+PAUSE_AFTER_ANIM = 1.0
+FRAME_DELAY = 0.1
+
+while True:
+    for anim_row, anim_name in ANIMATIONS:
+        for _ in range(REPEAT_COUNT):
+            for frame in range(FRAMES_PER_ROW):
+                draw_frame(anim_row, frame)
+                pico2d.delay(FRAME_DELAY)
+        pico2d.delay(PAUSE_AFTER_ANIM)
+
 pico2d.close_canvas()
