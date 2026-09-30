@@ -2,7 +2,7 @@ import pico2d
 
 pico2d.open_canvas()
 
-sheet = pico2d.load_image('animation_sheet.png')
+sheet = pico2d.load_image('capybara_sheet.png')
 
 # 스프라이트 시트는 8열 x 4행, 한 셀(프레임)은 100x100
 FRAME_WIDTH = 100
