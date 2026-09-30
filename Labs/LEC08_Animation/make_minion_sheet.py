@@ -388,8 +388,19 @@ def build_sheet():
     sheet = Image.new('RGBA', (COLS * CELL, ROWS * CELL), (0, 0, 0, 0))
     for row, (name, builder) in enumerate(ANIMATIONS):
         for col, frame in enumerate(builder()):
+            check_in_cell(frame, name, col)
             sheet.paste(frame, (col * CELL, row * CELL))
     return sheet
+
+
+def check_in_cell(frame, name, col):
+    """프레임이 셀 밖으로 나가지 않았는지 확인한다."""
+    box = frame.getbbox()
+    if box is None:
+        raise ValueError('%s %d번 프레임이 비어 있습니다' % (name, col))
+    if box[0] < 0 or box[1] < 0 or box[2] > CELL or box[3] > CELL:
+        raise ValueError('%s %d번 프레임이 셀을 벗어났습니다: %s'
+                         % (name, col, box))
 
 
 def main():
@@ -397,6 +408,8 @@ def main():
     sheet.save(SHEET_FILE)
     print('%s 저장: %dx%d (%d행 x %d열, 셀 %dx%d)'
           % (SHEET_FILE, sheet.width, sheet.height, ROWS, COLS, CELL, CELL))
+    for row, (name, _) in enumerate(ANIMATIONS):
+        print('  %d행: %s' % (row, name))
 
 
 if __name__ == '__main__':
