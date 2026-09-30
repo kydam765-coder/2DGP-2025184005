@@ -10,9 +10,14 @@ import os
 LABEL_DIR = 'labels'
 LABEL_SIZE = (280, 72)
 FONT_PATH = 'C:/Windows/Fonts/malgunbd.ttf'
-FONT_SIZE = 44
+FONT_SIZE = 40
 FILL = (255, 255, 255, 255)
-STROKE = (30, 30, 40, 255)
+STROKE = (24, 24, 32, 255)
+STROKE_WIDTH = 2
+PLATE = (26, 30, 44, 200)   # 반투명 배경판
+PLATE_EDGE = (255, 214, 64, 255)  # 배경판 테두리(미니언 노란색)
+PLATE_MARGIN = 5             # 화면 바깥 여백
+PLATE_RADIUS = 18            # 배경판 모서리 둥글림
 
 NAMES = [
     ('idle', '가만히 있기'),
@@ -32,16 +37,19 @@ def load_font():
 
 
 def make_label(text, font):
-    """검은 테두리 + 흰 글씨의 가운데 정렬 라벨 이미지를 만든다."""
+    """둥근 배경판 위에 흰 글씨를 가운데 정렬로 그은 라벨 이미지를 만든다."""
     image = Image.new('RGBA', LABEL_SIZE, (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
-    x = (LABEL_SIZE[0] - (right - left)) / 2 - left
-    y = (LABEL_SIZE[1] - (bottom - top)) / 2 - top
-    for dx in (-2, 0, 2):
-        for dy in (-2, 0, 2):
-            draw.text((x + dx, y + dy), text, font=font, fill=STROKE)
-    draw.text((x, y), text, font=font, fill=FILL)
+    width, height = LABEL_SIZE
+    draw.rounded_rectangle(
+        [PLATE_MARGIN, PLATE_MARGIN, width - PLATE_MARGIN, height - PLATE_MARGIN],
+        radius=PLATE_RADIUS, fill=PLATE, outline=PLATE_EDGE, width=2)
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font,
+                                            stroke_width=STROKE_WIDTH)
+    x = (width - (right - left)) / 2 - left
+    y = (height - (bottom - top)) / 2 - top
+    draw.text((x, y), text, font=font, fill=FILL,
+              stroke_width=STROKE_WIDTH, stroke_fill=STROKE)
     return image
 
 
