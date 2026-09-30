@@ -20,4 +20,12 @@ SCALE = 5
 CHARACTER_WIDTH = FRAME_WIDTH * SCALE
 CHARACTER_HEIGHT = FRAME_HEIGHT * SCALE
 
+# 4가지 애니메이션: 행 인덱스로 표현 (걷기, 달리기, 점프, 공격)
+ANIMATIONS = [
+    (0, '걷기'),
+    (1, '달리기'),
+    (2, '점프'),
+    (3, '공격'),
+]
+
 pico2d.close_canvas()
