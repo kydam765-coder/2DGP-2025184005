@@ -31,14 +31,30 @@ CENTER_Y = CANVAS_HEIGHT // 2
 CHARACTER_SCALE = 3
 CHARACTER_SIZE = FRAME_SIZE * CHARACTER_SCALE
 
+# 화면 아래쪽에 그릴 바닥 높이와 반복 진행 막대 한 칸의 너비
+GROUND_HEIGHT = 20
+PROGRESS_SEGMENT = 40
 
-def draw_frame(row, frame, name=''):
+
+def draw_progress(repeat):
+    """5회 반복 중 몇 번째 반복인지 막대 5개로 보여준다."""
+    start_x = CENTER_X - (REPEAT_COUNT * PROGRESS_SEGMENT) // 2
+    for i in range(REPEAT_COUNT):
+        x = start_x + i * PROGRESS_SEGMENT
+        r, g, b = (255, 210, 40) if i <= repeat else (92, 122, 92)
+        pico2d.draw_rectangle(x, 6, x + PROGRESS_SEGMENT - 8, 14,
+                              r, g, b, filled=True)
+
+
+def draw_frame(row, frame, name='', repeat=0):
     """시트의 (row행, frame번째) 셀을 화면 중앙에 확대해서 그린다.
 
     pico2d는 이미지를 자를 때도 아래쪽을 기준으로 좌표를 받으므로
     맨 위 행은 bottom = (전체 행 수 - 1 - row) * FRAME_SIZE 이다.
     """
     pico2d.clear_canvas()
+    pico2d.draw_rectangle(0, 0, CANVAS_WIDTH, GROUND_HEIGHT,
+                          118, 158, 110, filled=True)
     sheet.clip_draw(frame * FRAME_SIZE,
                     (TOTAL_ROWS - 1 - row) * FRAME_SIZE,
                     FRAME_SIZE, FRAME_SIZE,
@@ -46,6 +62,7 @@ def draw_frame(row, frame, name=''):
                     CHARACTER_SIZE, CHARACTER_SIZE)
     if name in labels:
         labels[name].draw(CENTER_X, CANVAS_HEIGHT - 48)
+    draw_progress(repeat)
     pico2d.update_canvas()
 
 
@@ -76,7 +93,7 @@ while True:
     for row, name in ANIMATIONS:
         for repeat in range(REPEAT_COUNT):
             for frame in range(FRAMES_PER_ROW):
-                draw_frame(row, frame, name)
+                draw_frame(row, frame, name, repeat)
                 pico2d.delay(FRAME_DELAY)
         pico2d.delay(PAUSE_SECONDS)
 
