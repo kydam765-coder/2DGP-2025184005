@@ -138,8 +138,8 @@ def draw_body(frame, pose):
     draw = ImageDraw.Draw(frame)
     cx, y0, y1, hw = body_geom(pose)
     capsule(draw, cx, y0, y1, hw, fill=YELLOW, outline=OUTLINE)
-    capsule(draw, cx + 3, y0 + 3, y1 - 2, hw - 3, fill=YELLOW_DARK)
-    capsule(draw, cx - 5, y0 + 5, y1 - 7, 2, fill=YELLOW_LIGHT)
+    capsule(draw, cx + 4, y0 + 4, y1 - 3, hw - 4, fill=YELLOW_DARK)
+    capsule(draw, cx - 5, y0 + 1, y0 + 5, 1, fill=YELLOW_LIGHT)
     return frame
 
 
@@ -149,21 +149,71 @@ def draw_overalls(frame, pose):
     바지 부분은 몸통 마스크로 잘라서 몸통 곡선을 그대로 따라가게 한다.
     """
     cx, y0, y1, hw = body_geom(pose)
-    waist = y0 + 20
+    bib = y0 + 17
 
     layer = new_frame()
     draw = ImageDraw.Draw(layer)
-    box(draw, cx - hw, waist, cx + hw, y1 + 4, fill=OVERALL)
-    box(draw, cx - hw, y1 - 5, cx + hw, y1 + 4, fill=OVERALL_DARK)
+    box(draw, cx - hw, bib, cx + hw, y1 + 4, fill=OVERALL)
+    box(draw, cx - 3, y0 + 22, cx + 3, y0 + 25,
+        fill=OVERALL, outline=OVERALL_DARK)
     for sx in (-6, 3):
-        box(draw, cx + sx, y0 + 6, cx + sx + 3, y0 + 16,
+        box(draw, cx + sx, y0 + 7, cx + sx + 3, bib + 1,
             fill=OVERALL, outline=OVERALL_DARK)
-    box(draw, cx - 5, y0 + 15, cx + 5, waist + 2,
-        fill=OVERALL, outline=OVERALL_DARK)
-    box(draw, cx - 3, y0 + 19, cx + 3, waist + 1,
-        fill=OVERALL, outline=OVERALL_DARK)
-    ellipse(draw, cx, y0 + 17, 2, 2, fill=BUTTON)
+    ellipse(draw, cx, y0 + 19, 2, 2, fill=BUTTON)
+    box(draw, cx - hw, bib, cx + hw, bib, fill=OVERALL_DARK)
+    box(draw, cx - hw, y1 - 4, cx + hw, y1 + 4, fill=OVERALL_DARK)
     clip_to(layer, body_mask(pose))
 
     frame.alpha_composite(layer)
+    return frame
+
+
+def draw_face(frame, pose):
+    """고글, 눈, 눈썹, 입을 그린다. 몸통 밖으로는 튀어나가지 않게 자른다."""
+    cx, y0, y1, hw = body_geom(pose)
+    ey = y0 + 9
+
+    layer = new_frame()
+    draw = ImageDraw.Draw(layer)
+
+    box(draw, cx - hw, ey - 4, cx + hw, ey + 3, fill=GOGGLE_DARK)
+    box(draw, cx - hw, ey - 4, cx + hw, ey - 3, fill=GOGGLE)
+
+    for i, ex in enumerate((-4, 4)):
+        if pose['eye'] == 'blink' and i == 0:
+            ellipse(draw, cx + ex, ey, 3, 3, fill=GOGGLE, outline=GOGGLE_DARK)
+            box(draw, cx + ex - 2, ey, cx + ex + 2, ey, fill=PUPIL)
+            continue
+        ellipse(draw, cx + ex, ey, 3, 3, fill=GOGGLE, outline=GOGGLE_DARK)
+        ellipse(draw, cx + ex, ey, 2, 2, fill=EYE_WHITE)
+        look = 1 if pose['eye'] == 'angry' else 0
+        box(draw, cx + ex - 1, ey - 1 + look, cx + ex, ey + look, fill=PUPIL)
+        if pose['brow'] or pose['eye'] == 'angry':
+            tilt = -1 if i == 0 else 1
+            draw.line([cx + ex - 3 * tilt, ey - 6,
+                       cx + ex + 3 * tilt, ey - 8], fill=HAIR)
+
+    mouth = pose['mouth']
+    if mouth == 'smile':
+        box(draw, cx - 3, ey + 3, cx - 2, ey + 4, fill=MOUTH)
+        box(draw, cx + 2, ey + 3, cx + 3, ey + 4, fill=MOUTH)
+        box(draw, cx - 1, ey + 5, cx + 1, ey + 5, fill=MOUTH)
+    elif mouth == 'open':
+        ellipse(draw, cx, ey + 5, 2, 2, fill=MOUTH, outline=OUTLINE)
+    else:
+        box(draw, cx - 2, ey + 4, cx + 2, ey + 4, fill=MOUTH)
+
+    clip_to(layer, body_mask(pose))
+    frame.alpha_composite(layer)
+    return frame
+
+
+def draw_hair(frame, pose):
+    """머리 꼭대기의 검은 머리카락 뭉치를 그린다."""
+    draw = ImageDraw.Draw(frame)
+    cx, y0, y1, hw = body_geom(pose)
+    sway = pose['hair_sway']
+    box(draw, cx - 4 + sway, y0 - 2, cx + 4 + sway, y0 + 1, fill=HAIR)
+    draw.polygon([(cx - 2 + sway, y0 - 2), (cx + sway, y0 - 5),
+                  (cx + 2 + sway, y0 - 2)], fill=HAIR)
     return frame
