@@ -41,6 +41,7 @@ MOUTH = (120, 40, 40, 255)
 HAIR = (58, 48, 38, 255)
 SHOE = (66, 66, 78, 255)
 SHOE_DARK = (44, 44, 54, 255)
+SPARK = (255, 246, 170, 255)
 
 # 몸체 기준 좌표 (cx: 가로 중심, y0: 머리 위, y1: 몸 아래, hw: 반너비)
 BODY_CX = 25
@@ -113,6 +114,7 @@ def default_pose(**overrides):
         'mouth': 'smile',  # smile / open / flat
         'brow': False,    # 눈썹(화남 표현)
         'hair_sway': 0,   # 머리카락 흔들림
+        'spark': False,   # 공격 타격 효과
     }
     pose.update(overrides)
     return pose
@@ -220,6 +222,14 @@ def draw_hair(frame, pose):
     return frame
 
 
+def arm_tip(pose, side, tip):
+    """팔 끝(주먹) 좌표를 계산한다."""
+    cx, y0, y1, hw = body_geom(pose)
+    sx = cx + side * (hw - 1)
+    sy = y0 + 20
+    return sx + tip[0], sy + tip[1]
+
+
 def draw_arm(draw, pose, side, tip):
     """팔을 어깨에서 tip까지 뻗고, 끝에 주먹을 둔다. side: -1=뒤쪽, 1=앞쪽."""
     cx, y0, y1, hw = body_geom(pose)
@@ -228,6 +238,14 @@ def draw_arm(draw, pose, side, tip):
     tx, ty = sx + tip[0], sy + tip[1]
     limb(draw, sx, sy, tx, ty, YELLOW, width=4)
     ellipse(draw, tx, ty, 2, 2, fill=YELLOW, outline=OUTLINE)
+    return draw
+
+
+def draw_spark(draw, pose):
+    """공격 타격점에 위로 뻗은 반짝임 세 가지를 그린다."""
+    sx, sy = arm_tip(pose, 1, pose['arm_front'])
+    for dx, dy in ((-2, -4), (0, -5), (2, -4)):
+        draw.line([sx, sy, sx + dx, sy + dy], fill=SPARK)
     return draw
 
 
@@ -262,6 +280,8 @@ def make_frame(**overrides):
     draw_arm(draw, pose, 1, pose['arm_front'])
     draw_foot(draw, pose, pose['foot_back'])
     draw_foot(draw, pose, pose['foot_front'])
+    if pose['spark']:
+        draw_spark(draw, pose)
 
     return to_cell(frame)
 
@@ -304,4 +324,48 @@ def gait_pose(phase, swing, lift, bob, lean, mouth='smile'):
 def walk_frames():
     """1번 행: 걷기. 다리는 번갈아 어끼고 몸은 두 번 출렁인다."""
     return [make_frame(**gait_pose(i / COLS * 2 * math.pi, 5, 2, 1, 0))
+            for i in range(COLS)]
+
+
+def run_frames():
+    """2번 행: 뛰기. 보폭과 팔 흔들림을 키우고 앞으로 기울이며 헐떡인다."""
+    frames = []
+    for i in range(COLS):
+        pose = gait_pose(i / COLS * 2 * math.pi, 7, 4, 2, 2, mouth='open')
+        pose['hair_sway'] -= 2
+        frames.append(make_frame(**pose))
+    return frames
+
+
+def jump_frames():
+    """3번 행: 점프. 웅크려 힘내고 올라갔다가 떨어지고 착지한다."""
+    body = [0, -1, -3, -5, -6, -4, -1, 0]
+    leg = [0, 0, 2, 3, 3, 2, 0, 0]
+    arm_f = [(2, 5), (1, 3), (0, -1), (-1, -4), (-1, -4), (0, -1), (1, 3), (2, 5)]
+    arm_b = [(-v[0], v[1]) for v in arm_f]
+    foot_f = [(3, 0), (3, 0), (1, -1), (0, -2), (0, -2), (1, -1), (3, 0), (3, 0)]
+    foot_b = [(-v[0], v[1]) for v in foot_f]
+    mouth = ['flat', 'open', 'open', 'open', 'open', 'open', 'flat', 'flat']
+    return [make_frame(body_dy=body[i], leg=leg[i],
+                       arm_front=arm_f[i], arm_back=arm_b[i],
+                       foot_front=foot_f[i], foot_back=foot_b[i],
+                       hair_sway=body[i] // 2, mouth=mouth[i])
+            for i in range(COLS)]
+
+
+def attack_frames():
+    """4번 행: 공격. 주먹을 거두고 앞으로 내리친 뒤 자세를 되돌린다."""
+    body = [0, 0, -1, -2, -1, 0, 0, 0]
+    lean = [0, -1, 1, 2, 1, 0, 0, 0]
+    arm_f = [(-2, 2), (-4, 0), (9, -1), (9, -1), (7, 0), (4, 3), (2, 5), (4, 5)]
+    arm_b = [(-4, 5), (-6, 4), (-4, 5), (-3, 5), (-4, 5), (-4, 5), (-4, 5), (-4, 5)]
+    foot_f = [(4, 0), (4, 0), (6, 0), (7, 0), (6, 0), (5, 0), (4, 0), (4, 0)]
+    foot_b = [(-4, 0), (-5, 0), (-4, 0), (-3, 0), (-4, 0), (-4, 0), (-4, 0), (-4, 0)]
+    eye = ['open', 'angry', 'angry', 'angry', 'angry', 'open', 'open', 'open']
+    mouth = ['flat', 'open', 'open', 'open', 'flat', 'flat', 'smile', 'smile']
+    return [make_frame(body_dy=body[i], lean=lean[i],
+                       arm_front=arm_f[i], arm_back=arm_b[i],
+                       foot_front=foot_f[i], foot_back=foot_b[i],
+                       eye=eye[i], brow=eye[i] == 'angry', mouth=mouth[i],
+                       spark=i in (2, 3))
             for i in range(COLS)]
