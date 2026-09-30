@@ -369,3 +369,35 @@ def attack_frames():
                        eye=eye[i], brow=eye[i] == 'angry', mouth=mouth[i],
                        spark=i in (2, 3))
             for i in range(COLS)]
+
+
+# 시트에 들어갈 애니메이션 순서(행 순서). animation_viewer.py의 ANIMATIONS와 순서를 맞춘다.
+ANIMATIONS = [
+    ('idle', idle_frames),
+    ('walk', walk_frames),
+    ('run', run_frames),
+    ('jump', jump_frames),
+    ('attack', attack_frames),
+]
+
+SHEET_FILE = 'minion_sheet.png'
+
+
+def build_sheet():
+    """5종 애니메이션을 8열 x 5행 스프라이트 시트로 합친다."""
+    sheet = Image.new('RGBA', (COLS * CELL, ROWS * CELL), (0, 0, 0, 0))
+    for row, (name, builder) in enumerate(ANIMATIONS):
+        for col, frame in enumerate(builder()):
+            sheet.paste(frame, (col * CELL, row * CELL))
+    return sheet
+
+
+def main():
+    sheet = build_sheet()
+    sheet.save(SHEET_FILE)
+    print('%s 저장: %dx%d (%d행 x %d열, 셀 %dx%d)'
+          % (SHEET_FILE, sheet.width, sheet.height, ROWS, COLS, CELL, CELL))
+
+
+if __name__ == '__main__':
+    main()
