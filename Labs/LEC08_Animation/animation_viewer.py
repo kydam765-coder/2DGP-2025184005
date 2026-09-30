@@ -42,3 +42,14 @@ def draw_frame(row, frame):
                     CENTER_X, CENTER_Y,
                     CHARACTER_SIZE, CHARACTER_SIZE)
     pico2d.update_canvas()
+
+
+# 시트의 각 행에 해당하는 애니메이션: (행 인덱스, 이름)
+# make_minion_sheet.py의 ANIMATIONS 순서와 같다.
+ANIMATIONS = [
+    (0, 'idle'),
+    (1, 'walk'),
+    (2, 'run'),
+    (3, 'jump'),
+    (4, 'attack'),
+]
