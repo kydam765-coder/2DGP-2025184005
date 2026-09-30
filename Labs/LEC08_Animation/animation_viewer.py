@@ -53,3 +53,19 @@ ANIMATIONS = [
     (3, 'jump'),
     (4, 'attack'),
 ]
+
+# 재생 설정: 애니메이션 하나를 5회 반복한 뒤 1초 동안 멈춘다.
+REPEAT_COUNT = 5
+PAUSE_SECONDS = 1.0
+FRAME_DELAY = 0.08
+
+# 5종 애니메이션을 순서대로 무한 반복한다.
+while True:
+    for row, name in ANIMATIONS:
+        for repeat in range(REPEAT_COUNT):
+            for frame in range(FRAMES_PER_ROW):
+                draw_frame(row, frame)
+                pico2d.delay(FRAME_DELAY)
+        pico2d.delay(PAUSE_SECONDS)
+
+pico2d.close_canvas()
