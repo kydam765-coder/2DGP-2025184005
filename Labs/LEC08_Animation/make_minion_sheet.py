@@ -242,3 +242,24 @@ def draw_foot(draw, pose, offset):
     draw.rounded_rectangle([x - 3, foot_y, x + 3, foot_y + 1],
                            radius=1, fill=SHOE_DARK)
     return draw
+
+
+def make_frame(**overrides):
+    """자세 정보를 받아 200x200 한 셀짜리 프레임을 만든다."""
+    pose = default_pose(**overrides)
+
+    frame = new_frame()
+    draw = ImageDraw.Draw(frame)
+    draw_arm(draw, pose, -1, pose['arm_back'])
+
+    draw_body(frame, pose)
+    draw_overalls(frame, pose)
+    draw_face(frame, pose)
+    draw_hair(frame, pose)
+
+    draw = ImageDraw.Draw(frame)
+    draw_arm(draw, pose, 1, pose['arm_front'])
+    draw_foot(draw, pose, pose['foot_back'])
+    draw_foot(draw, pose, pose['foot_front'])
+
+    return to_cell(frame)
