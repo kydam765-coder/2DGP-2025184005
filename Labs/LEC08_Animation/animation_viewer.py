@@ -1,6 +1,3 @@
-import math
-import random
-
 import pico2d
 
 pico2d.open_canvas()
