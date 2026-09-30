@@ -13,4 +13,11 @@ FRAME_HEIGHT = 100
 FRAMES_PER_ROW = 8
 TOTAL_ROWS = 4
 
+# 캐릭터를 화면 중앙에 배치하고 화면 절반 이상을 차지하도록 확대
+CENTER_X = 400
+CENTER_Y = 300
+SCALE = 5
+CHARACTER_WIDTH = FRAME_WIDTH * SCALE
+CHARACTER_HEIGHT = FRAME_HEIGHT * SCALE
+
 pico2d.close_canvas()
