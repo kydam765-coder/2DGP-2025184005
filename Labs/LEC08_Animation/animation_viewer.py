@@ -18,3 +18,27 @@ TOTAL_ROWS = 5       # 시트에 담긴 애니메이션(행) 수
 
 pico2d.open_canvas(800, 600)
 sheet = pico2d.load_image(SHEET_FILE)
+
+# 화면 배치: 캔버스는 800x600이고, 좌표 원점은 왼쪽 아래다.
+CANVAS_WIDTH, CANVAS_HEIGHT = 800, 600
+CENTER_X = CANVAS_WIDTH // 2
+CENTER_Y = CANVAS_HEIGHT // 2
+
+# 3배 확대하면 600x600으로 화면 높이의 100%, 너비의 75%를 차지한다.
+CHARACTER_SCALE = 3
+CHARACTER_SIZE = FRAME_SIZE * CHARACTER_SCALE
+
+
+def draw_frame(row, frame):
+    """시트의 (row행, frame번째) 셀을 화면 중앙에 확대해서 그린다.
+
+    pico2d는 이미지를 자를 때도 아래쪽을 기준으로 좌표를 받으므로
+    맨 위 행은 bottom = (전체 행 수 - 1 - row) * FRAME_SIZE 이다.
+    """
+    pico2d.clear_canvas()
+    sheet.clip_draw(frame * FRAME_SIZE,
+                    (TOTAL_ROWS - 1 - row) * FRAME_SIZE,
+                    FRAME_SIZE, FRAME_SIZE,
+                    CENTER_X, CENTER_Y,
+                    CHARACTER_SIZE, CHARACTER_SIZE)
+    pico2d.update_canvas()
