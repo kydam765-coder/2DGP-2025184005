@@ -12,6 +12,7 @@
 """
 
 from PIL import Image, ImageChops, ImageDraw
+import math
 
 # 시트 / 셀 규격
 COLS = 8
@@ -263,3 +264,44 @@ def make_frame(**overrides):
     draw_foot(draw, pose, pose['foot_front'])
 
     return to_cell(frame)
+
+
+def idle_frames():
+    """0번 행: 가만히 서서 살짝 숨 쉬고 가끔 눈을 깜빡인다."""
+    bob = [0, 0, -1, -1, 0, 0, 0, 0]
+    return [make_frame(
+        body_dy=bob[i],
+        arm_front=(4, 5 + bob[i] // 2),
+        arm_back=(-4, 5 + bob[i] // 2),
+        eye='blink' if i == 5 else 'open',
+        mouth='smile',
+    ) for i in range(COLS)]
+
+
+def gait_pose(phase, swing, lift, bob, lean, mouth='smile'):
+    """걷기/뛰기 공통 자세 계산.
+
+    phase: 0~2*pi. swing: 발이 앞뒤로 흔들리는 폭, lift: 발이 뜨는 높이,
+    bob: 몸이 위아래로 출렁이는 폭, lean: 몸이 기울어지는 양.
+    """
+    front = math.sin(phase)
+    back = math.sin(phase + math.pi)
+    return dict(
+        body_dy=-int(round(bob * abs(math.sin(phase * 2)))),
+        lean=lean,
+        foot_front=(int(round(front * swing)),
+                    -int(round(max(0.0, front) * lift))),
+        foot_back=(int(round(back * swing)),
+                   -int(round(max(0.0, back) * lift))),
+        arm_front=(int(round(back * swing)), 4 - int(round(front))),
+        arm_back=(int(round(front * swing)), 4 - int(round(back))),
+        hair_sway=int(round(front * 1)),
+        eye='open',
+        mouth=mouth,
+    )
+
+
+def walk_frames():
+    """1번 행: 걷기. 다리는 번갈아 어끼고 몸은 두 번 출렁인다."""
+    return [make_frame(**gait_pose(i / COLS * 2 * math.pi, 5, 2, 1, 0))
+            for i in range(COLS)]
