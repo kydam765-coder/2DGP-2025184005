@@ -263,12 +263,26 @@ def draw_foot(draw, pose, offset):
     return draw
 
 
+def draw_shadow(draw, pose):
+    """바닥에 드리우는 타원 그림자.
+
+    몸이 높이 뜰수록 그림자가 작아지고 옅어져, 점프 높이를 눈으로 알 수 있다.
+    """
+    lift = max(0, -pose['body_dy'])
+    scale = max(0.4, 1.0 - 0.1 * lift)
+    rx = max(2, int(round(11 * scale)))
+    ry = max(1, int(round(2 * scale)))
+    draw.ellipse([BODY_CX - rx, GROUND - ry, BODY_CX + rx, GROUND + ry],
+                 fill=(24, 28, 40, int(round(96 * scale))))
+
+
 def make_frame(**overrides):
     """자세 정보를 받아 200x200 한 셀짜리 프레임을 만든다."""
     pose = default_pose(**overrides)
 
     frame = new_frame()
     draw = ImageDraw.Draw(frame)
+    draw_shadow(draw, pose)
     draw_arm(draw, pose, -1, pose['arm_back'])
 
     draw_body(frame, pose)
