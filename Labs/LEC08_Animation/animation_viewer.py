@@ -1,53 +1,20 @@
+"""미니언 스프라이트 시트 애니메이션 뷰어.
+
+minion_sheet.png(8열 x 5행, 셀 200x200)의 각 행에 담긴 애니메이션을
+화면 중앙에서 큰 크기로 재생한다.
+
+- 5종(idle / walk / run / jump / attack)을 차례로 무한 반복한다.
+- 각 애니메이션은 5회 반복한 뒤 1초 동안 멈춘다.
+- 캐릭터는 3배 확대해 화면의 절반 이상을 차지한다.
+"""
+
 import pico2d
 
-pico2d.open_canvas()
+# 스프라이트 시트 규격
+SHEET_FILE = 'minion_sheet.png'
+FRAME_SIZE = 200     # 한 셀(프레임)의 픽셀 크기
+FRAMES_PER_ROW = 8   # 한 행에 들어가는 프레임 수
+TOTAL_ROWS = 5       # 시트에 담긴 애니메이션(행) 수
 
-sheet = pico2d.load_image('capybara_sheet.png')
-
-# 스프라이트 시트는 8열 x 4행, 한 셀(프레임)은 100x100
-FRAME_WIDTH = 100
-FRAME_HEIGHT = 100
-FRAMES_PER_ROW = 8
-TOTAL_ROWS = 4
-
-# 캐릭터를 화면 중앙에 배치하고 화면 절반 이상을 차지하도록 확대
-CENTER_X = 400
-CENTER_Y = 300
-SCALE = 5
-CHARACTER_WIDTH = FRAME_WIDTH * SCALE
-CHARACTER_HEIGHT = FRAME_HEIGHT * SCALE
-
-# 4가지 애니메이션: 행 인덱스로 표현 (걷기, 달리기, 점프, 공격)
-ANIMATIONS = [
-    (0, '걷기'),
-    (1, '달리기'),
-    (2, '점프'),
-    (3, '공격'),
-]
-
-
-def draw_frame(anim_row, frame):
-    pico2d.clear_canvas()
-    sheet.clip_draw(
-        frame * FRAME_WIDTH, anim_row * FRAME_HEIGHT,
-        FRAME_WIDTH, FRAME_HEIGHT,
-        CENTER_X, CENTER_Y,
-        CHARACTER_WIDTH, CHARACTER_HEIGHT
-    )
-    pico2d.update_canvas()
-
-
-# 애니메이션 하나는 5회 반복 후 1초 정지
-REPEAT_COUNT = 5
-PAUSE_AFTER_ANIM = 1.0
-FRAME_DELAY = 0.1
-
-while True:
-    for anim_row, anim_name in ANIMATIONS:
-        for _ in range(REPEAT_COUNT):
-            for frame in range(FRAMES_PER_ROW):
-                draw_frame(anim_row, frame)
-                pico2d.delay(FRAME_DELAY)
-        pico2d.delay(PAUSE_AFTER_ANIM)
-
-pico2d.close_canvas()
+pico2d.open_canvas(800, 600)
+sheet = pico2d.load_image(SHEET_FILE)
