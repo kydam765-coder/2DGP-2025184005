@@ -83,6 +83,14 @@ class AutorunTests(unittest.TestCase):
             self.character.update()
             self.assertEqual(self.character.scale, boy.Autorun.MAX_SCALE)
 
+    def test_autorun_reverses_at_the_right_edge(self):
+        self.character.x = 749
+        self.character.begin_autorun()
+        self.set_time(1.0)
+        self.character.update()
+        self.assertEqual(self.character.face_dir, -1)
+        self.assertLessEqual(self.character.x, 800 - 50 * self.character.scale)
+
 
 if __name__ == '__main__':
     unittest.main()
