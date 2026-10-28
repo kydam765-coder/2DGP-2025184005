@@ -26,6 +26,15 @@ class AutorunTests(unittest.TestCase):
     def test_autorun_state_class_is_attached_to_boy(self):
         self.assertIsInstance(self.character.autorun, boy.Autorun)
 
+    def test_idle_enters_autorun_when_started(self):
+        self.character.begin_autorun()
+        self.assertEqual(self.character.state, 'AUTORUN')
+
+    def test_autorun_can_only_start_from_idle(self):
+        self.character.start_running()
+        self.character.begin_autorun()
+        self.assertEqual(self.character.state, 'RUN')
+
 
 if __name__ == '__main__':
     unittest.main()
