@@ -91,6 +91,15 @@ class AutorunTests(unittest.TestCase):
         self.assertEqual(self.character.face_dir, -1)
         self.assertLessEqual(self.character.x, 800 - 50 * self.character.scale)
 
+    def test_autorun_reverses_at_the_left_edge(self):
+        self.character.x = 51
+        self.character.face_dir = -1
+        self.character.begin_autorun()
+        self.set_time(1.0)
+        self.character.update()
+        self.assertEqual(self.character.face_dir, 1)
+        self.assertGreaterEqual(self.character.x, 50 * self.character.scale)
+
 
 if __name__ == '__main__':
     unittest.main()
