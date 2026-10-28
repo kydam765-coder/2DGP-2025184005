@@ -119,6 +119,17 @@ class AutorunTests(unittest.TestCase):
             self.character.update_direction_keys([])
             self.assertEqual(self.character.state, 'IDLE')
 
+    def test_interrupted_autorun_uses_manual_run_movement(self):
+        self.character.begin_autorun()
+        self.set_time(0.1)
+        self.character.update()
+        self.character.update_direction_keys([-1])
+        start_x = self.character.x
+        self.character.update()
+        self.assertLess(self.character.x, start_x)
+        self.character.update_direction_keys([])
+        self.assertEqual(self.character.state, 'IDLE')
+
 
 if __name__ == '__main__':
     unittest.main()
