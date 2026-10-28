@@ -100,6 +100,13 @@ class AutorunTests(unittest.TestCase):
         self.assertEqual(self.character.face_dir, 1)
         self.assertGreaterEqual(self.character.x, 50 * self.character.scale)
 
+    def test_autorun_returns_to_idle_after_five_seconds(self):
+        self.character.begin_autorun()
+        self.set_time(5.0)
+        self.character.update()
+        self.assertEqual(self.character.state, 'IDLE')
+        self.assertEqual(self.character.scale, 1.0)
+
 
 if __name__ == '__main__':
     unittest.main()
