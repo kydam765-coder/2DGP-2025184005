@@ -56,6 +56,20 @@ class AutorunTests(unittest.TestCase):
         self.character.update()
         self.assertGreater(self.character.x - 400 - first_distance, first_distance)
 
+    def test_autorun_speed_has_a_cap(self):
+        with patch.object(boy.Autorun, 'DURATION', 100.0):
+            self.character.begin_autorun()
+            self.set_time(5.9)
+            self.character.update()
+            start_x = self.character.x
+            self.set_time(6.0)
+            self.character.update()
+            first_distance = abs(self.character.x - start_x)
+            start_x = self.character.x
+            self.set_time(6.1)
+            self.character.update()
+            self.assertAlmostEqual(abs(self.character.x - start_x), first_distance)
+
 
 if __name__ == '__main__':
     unittest.main()
