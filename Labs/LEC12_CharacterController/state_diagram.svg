@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620" role="img" aria-labelledby="title description">
+  <title id="title">Boy character state diagram</title>
+  <desc id="description">IDLE transitions to RUN with direction keys, SLEEP after five seconds, or AUTORUN with A. AUTORUN transitions to RUN with direction keys or IDLE after five seconds.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#334155"/>
+    </marker>
+    <style>
+      text { font-family: Segoe UI, Arial, sans-serif; fill: #172033; }
+      .state { stroke-width: 3; rx: 18; }
+      .edge { fill: none; stroke: #334155; stroke-width: 2.5; marker-end: url(#arrow); }
+      .label { font-size: 15px; font-weight: 600; paint-order: stroke; stroke: #fff; stroke-width: 6px; stroke-linejoin: round; }
+      .name { font-size: 24px; font-weight: 700; }
+      .detail { font-size: 14px; fill: #475569; }
+    </style>
+  </defs>
+  <rect width="1000" height="620" fill="#f8fafc"/>
+  <text x="500" y="46" text-anchor="middle" font-size="28" font-weight="700">Boy State Diagram</text>
+
+  <circle cx="95" cy="275" r="13" fill="#172033"/>
+  <path class="edge" d="M108 275 H175"/>
+
+  <rect class="state" x="180" y="230" width="170" height="90" fill="#dbeafe" stroke="#3b82f6"/>
+  <text class="name" x="265" y="270" text-anchor="middle">IDLE</text>
+  <text class="detail" x="265" y="295" text-anchor="middle">기본 대기</text>
+
+  <rect class="state" x="465" y="100" width="190" height="90" fill="#dcfce7" stroke="#22c55e"/>
+  <text class="name" x="560" y="140" text-anchor="middle">RUN</text>
+  <text class="detail" x="560" y="165" text-anchor="middle">키 입력 방향으로 이동</text>
+
+  <rect class="state" x="465" y="230" width="220" height="100" fill="#ffedd5" stroke="#f97316"/>
+  <text class="name" x="575" y="272" text-anchor="middle">AUTORUN</text>
+  <text class="detail" x="575" y="298" text-anchor="middle">5초 · 가속 · 확대 · 반전</text>
+
+  <rect class="state" x="465" y="420" width="190" height="90" fill="#e2e8f0" stroke="#64748b"/>
+  <text class="name" x="560" y="460" text-anchor="middle">SLEEP</text>
+  <text class="detail" x="560" y="485" text-anchor="middle">정지</text>
+
+  <path class="edge" d="M350 245 C395 215 420 165 465 150"/>
+  <text class="label" x="410" y="190" text-anchor="middle">방향키</text>
+  <path class="edge" d="M465 120 C405 105 370 180 345 225"/>
+  <text class="label" x="405" y="108" text-anchor="middle">방향키 뗌</text>
+
+  <path class="edge" d="M350 265 H460"/>
+  <text class="label" x="405" y="252" text-anchor="middle">A 키</text>
+  <path class="edge" d="M555 230 V195"/>
+  <text class="label" x="610" y="215">방향키</text>
+  <path class="edge" d="M465 310 C425 365 380 365 345 310"/>
+  <text class="label" x="410" y="365" text-anchor="middle">5초 경과</text>
+
+  <path class="edge" d="M265 320 C265 470 350 465 460 465"/>
+  <text class="label" x="340" y="425" text-anchor="middle">5초 경과</text>
+  <path class="edge" d="M465 440 C375 390 315 355 300 320"/>
+  <text class="label" x="365" y="380" text-anchor="middle">Space</text>
+
+</svg>
