@@ -107,6 +107,18 @@ class AutorunTests(unittest.TestCase):
         self.assertEqual(self.character.state, 'IDLE')
         self.assertEqual(self.character.scale, 1.0)
 
+    def test_direction_key_cancels_autorun_into_manual_run(self):
+        for direction in (-1, 1):
+            self.character.begin_autorun()
+            self.set_time(self.clock[0] + 0.1)
+            self.character.update()
+            self.character.update_direction_keys([direction])
+            self.assertEqual(self.character.state, 'RUN')
+            self.assertEqual(self.character.face_dir, direction)
+            self.assertEqual(self.character.scale, 1.0)
+            self.character.update_direction_keys([])
+            self.assertEqual(self.character.state, 'IDLE')
+
 
 if __name__ == '__main__':
     unittest.main()
