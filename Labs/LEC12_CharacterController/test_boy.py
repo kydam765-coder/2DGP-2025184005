@@ -76,6 +76,13 @@ class AutorunTests(unittest.TestCase):
         self.character.update()
         self.assertAlmostEqual(self.character.scale, 1.4)
 
+    def test_autorun_scale_has_a_cap(self):
+        with patch.object(boy.Autorun, 'DURATION', 100.0):
+            self.character.begin_autorun()
+            self.set_time(6.0)
+            self.character.update()
+            self.assertEqual(self.character.scale, boy.Autorun.MAX_SCALE)
+
 
 if __name__ == '__main__':
     unittest.main()
