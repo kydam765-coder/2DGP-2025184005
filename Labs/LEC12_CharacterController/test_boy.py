@@ -35,6 +35,12 @@ class AutorunTests(unittest.TestCase):
         self.character.begin_autorun()
         self.assertEqual(self.character.state, 'RUN')
 
+    def test_autorun_starts_without_an_initial_position_jump(self):
+        start_x = self.character.x
+        self.character.begin_autorun()
+        self.character.update()
+        self.assertEqual(self.character.x, start_x)
+
 
 if __name__ == '__main__':
     unittest.main()
