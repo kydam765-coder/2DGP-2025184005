@@ -47,6 +47,15 @@ class AutorunTests(unittest.TestCase):
         self.character.update()
         self.assertGreater(self.character.x, 400)
 
+    def test_autorun_accelerates_over_time(self):
+        self.character.begin_autorun()
+        self.set_time(1.0)
+        self.character.update()
+        first_distance = self.character.x - 400
+        self.set_time(2.0)
+        self.character.update()
+        self.assertGreater(self.character.x - 400 - first_distance, first_distance)
+
 
 if __name__ == '__main__':
     unittest.main()
