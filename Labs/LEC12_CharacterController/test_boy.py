@@ -130,6 +130,17 @@ class AutorunTests(unittest.TestCase):
         self.character.update_direction_keys([])
         self.assertEqual(self.character.state, 'IDLE')
 
+    def test_idle_timer_restarts_after_autorun(self):
+        self.character.begin_autorun()
+        self.set_time(5.0)
+        self.character.update()
+        self.set_time(9.9)
+        self.character.update()
+        self.assertEqual(self.character.state, 'IDLE')
+        self.set_time(10.0)
+        self.character.update()
+        self.assertEqual(self.character.state, 'SLEEP')
+
 
 if __name__ == '__main__':
     unittest.main()
