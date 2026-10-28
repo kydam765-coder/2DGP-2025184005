@@ -41,6 +41,12 @@ class AutorunTests(unittest.TestCase):
         self.character.update()
         self.assertEqual(self.character.x, start_x)
 
+    def test_autorun_moves_in_its_facing_direction(self):
+        self.character.begin_autorun()
+        self.set_time(1.0)
+        self.character.update()
+        self.assertGreater(self.character.x, 400)
+
 
 if __name__ == '__main__':
     unittest.main()
