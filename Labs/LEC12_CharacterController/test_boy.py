@@ -70,6 +70,12 @@ class AutorunTests(unittest.TestCase):
             self.character.update()
             self.assertAlmostEqual(abs(self.character.x - start_x), first_distance)
 
+    def test_autorun_scales_up_over_time(self):
+        self.character.begin_autorun()
+        self.set_time(2.0)
+        self.character.update()
+        self.assertAlmostEqual(self.character.scale, 1.4)
+
 
 if __name__ == '__main__':
     unittest.main()
