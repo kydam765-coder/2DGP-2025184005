@@ -1,0 +1,565 @@
+# -*- coding: utf-8 -*-
+"""피코의 캠핑장 습격 — 배경·HUD·오버레이 생성기.
+
+도형만으로 3개 맵 배경(낮/해질녘/밤)과 HUD 이미지를 만든다.
+"""
+import math
+import os
+import random
+
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+import art_sprites as A
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, "assets")
+W, H = 1280, 720
+
+FONT_B = "C:/Windows/Fonts/malgunbd.ttf"
+FONT_R = "C:/Windows/Fonts/malgun.ttf"
+
+INK = (22, 36, 30)
+CREAM = (250, 246, 236)
+AMBER = (233, 166, 63)
+AMBER_D = (185, 124, 34)
+MUTED = (154, 170, 158)
+
+
+def font(size, bold=True):
+    return ImageFont.truetype(FONT_B if bold else FONT_R, size)
+
+
+def text(d, xy, s, size, color, bold=True, anchor="la", stroke=0,
+         stroke_fill=(0, 0, 0, 180), letterspace=0):
+    f = font(size, bold)
+    x, y = xy
+    if letterspace:
+        cx = x
+        for ch in s:
+            d.text((cx, y), ch, font=f, fill=color, anchor=anchor,
+                   stroke_width=stroke, stroke_fill=stroke_fill)
+            cx += f.getlength(ch) + letterspace
+        return cx - letterspace
+    d.text((x, y), s, font=f, fill=color, anchor=anchor,
+           stroke_width=stroke, stroke_fill=stroke_fill)
+    return x + f.getlength(s)
+
+
+def soft_shadow(im, box, alpha=90, blur=8):
+    layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    d.ellipse([int(v) for v in box], fill=(8, 14, 10, alpha))
+    layer = layer.filter(ImageFilter.GaussianBlur(blur))
+    im.alpha_composite(layer)
+
+
+def radial(w, h, color, a0, a1=0, cx=0.5, cy=0.5, power=1.6):
+    """가운데가 밝고 바깥으로 사라지는 원형 그라디언트."""
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    px = im.load()
+    for y in range(h):
+        for x in range(w):
+            dx = (x / w - cx) * 2
+            dy = (y / h - cy) * 2
+            t = min(1.0, (dx * dx + dy * dy) ** 0.5)
+            a = int(a0 + (a1 - a0) * (t ** power))
+            if a > 0:
+                px[x, y] = (color[0], color[1], color[2], min(255, a))
+    return im
+
+
+# ---------------------------------------------------------------- grounds
+def grain(im, color, n, size=(1, 4), alpha=(18, 70), ss=1):
+    d = ImageDraw.Draw(im)
+    w, h = im.size
+    rnd = random.Random(7)
+    for _ in range(n):
+        x = rnd.uniform(0, w)
+        y = rnd.uniform(0, h)
+        s = rnd.uniform(*size) * ss
+        a = rnd.randint(*alpha)
+        d.ellipse([x - s, y - s, x + s, y + s],
+                  fill=(color[0], color[1], color[2], a))
+
+
+def grass_tufts(im, color, n, ss=1, rnd_seed=3):
+    d = ImageDraw.Draw(im)
+    w, h = im.size
+    rnd = random.Random(rnd_seed)
+    for _ in range(n):
+        x = rnd.uniform(0, w)
+        y = rnd.uniform(0, h)
+        k = rnd.uniform(0.7, 1.6) * ss
+        a = rnd.randint(60, 130)
+        for dx in (-2, 0, 2):
+            d.line([x + dx * k, y, x + dx * k * 1.8, y - 6 * k],
+                   fill=(color[0], color[1], color[2], a),
+                   width=max(1, int(1.2 * ss)))
+
+
+def vignette(im, color=(8, 16, 12), a=120, inn=0.55):
+    w, h = im.size
+    mask = Image.new("L", (w, h), 0)
+    d = ImageDraw.Draw(mask)
+    d.ellipse([-w * 0.25, -h * 0.30, w * 1.25, h * 1.30], fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(w // 10))
+    layer = Image.new("RGBA", (w, h), color + (0,))
+    layer.putalpha(mask.point(lambda v: int((255 - v) * a / 255)))
+    im.alpha_composite(layer)
+
+
+def bg_forest():
+    ss = 2
+    im = Image.new("RGBA", (W * ss, H * ss), (108, 138, 88, 255))
+    d = ImageDraw.Draw(im)
+    # 바닥 얼룩
+    rnd = random.Random(11)
+    for _ in range(90):
+        cx, cy = rnd.uniform(0, W) * ss, rnd.uniform(0, H) * ss
+        rx, ry = rnd.uniform(60, 200) * ss, rnd.uniform(40, 120) * ss
+        col = rnd.choice([(96, 126, 80), (118, 148, 94), (102, 132, 84)])
+        d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=col + (110,))
+    # 흙길
+    path = [(90, 610), (300, 560), (520, 590), (700, 520), (900, 470),
+            (1080, 400), (1210, 340)]
+    pl = [(x * ss, y * ss) for (x, y) in path]
+    d.line(pl, fill=(176, 150, 108, 255), width=88 * ss, joint="curve")
+    d.line(pl, fill=(195, 170, 126, 255), width=64 * ss, joint="curve")
+    d.line(pl, fill=(204, 181, 138, 255), width=34 * ss, joint="curve")
+    # 작은 갈림길
+    side = [(520, 588), (470, 470), (500, 380)]
+    d.line([(x * ss, y * ss) for (x, y) in side], fill=(180, 155, 112, 255),
+           width=54 * ss, joint="curve")
+    d.line([(x * ss, y * ss) for (x, y) in side], fill=(199, 175, 132, 255),
+           width=28 * ss, joint="curve")
+    # 잔디/풀/꽃
+    grass_tufts(im, (74, 102, 66), 220, ss)
+    grain(im, (60, 88, 56), 500, size=(1, 3), alpha=(20, 60), ss=ss)
+    rr = random.Random(5)
+    for _ in range(120):
+        x, y = rr.uniform(0, W) * ss, rr.uniform(0, H) * ss
+        c = rr.choice([(240, 236, 210), (233, 166, 63), (214, 120, 90)])
+        d.ellipse([x - 2 * ss, y - 2 * ss, x + 2 * ss, y + 2 * ss], fill=c + (190,))
+    # 햇빛 얼룩
+    sun = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ds = ImageDraw.Draw(sun)
+    for (cx, cy, rx, ry) in [(330, 210, 260, 150), (760, 300, 300, 160),
+                             (1090, 560, 220, 130), (180, 520, 180, 110)]:
+        ds.ellipse([(cx - rx) * ss, (cy - ry) * ss, (cx + rx) * ss, (cy + ry) * ss],
+                   fill=(246, 240, 168, 46))
+    sun = sun.filter(ImageFilter.GaussianBlur(26 * ss))
+    im.alpha_composite(sun)
+    vignette(im, (36, 58, 38), 90)
+    return im.resize((W, H), Image.LANCZOS)
+
+
+def bg_lake():
+    ss = 2
+    im = Image.new("RGBA", (W * ss, H * ss), (146, 140, 92, 255))
+    d = ImageDraw.Draw(im)
+    rnd = random.Random(21)
+    # 마른 풀밭
+    for _ in range(80):
+        cx, cy = rnd.uniform(0, W) * ss, rnd.uniform(0, 470) * ss
+        rx, ry = rnd.uniform(60, 180) * ss, rnd.uniform(30, 90) * ss
+        col = rnd.choice([(134, 128, 84), (156, 148, 100), (122, 118, 80)])
+        d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=col + (110,))
+    # 물
+    d.rectangle([0, 468 * ss, W * ss, H * ss], fill=(58, 82, 96, 255))
+    for i in range(46):
+        t = i / 46
+        y0 = 468 + t * (H - 468)
+        band = Image.new("RGBA", (W * ss, int((H - 468) / 46 * ss) + 2),
+                         (0, 0, 0, 0))
+        bd = ImageDraw.Draw(band)
+        col = (int(224 - 150 * t), int(140 - 60 * t), int(96 - 20 * t), 46)
+        bd.rectangle([0, 0, W * ss, band.size[1]], fill=col)
+        im.alpha_composite(band, (0, int(y0 * ss)))
+    # 잔물결
+    for _ in range(150):
+        x = rnd.uniform(0, W) * ss
+        y = rnd.uniform(476, H) * ss
+        ln = rnd.uniform(20, 90) * ss
+        a = rnd.randint(30, 80)
+        c = (242, 196, 140, a) if rnd.random() < 0.55 else (150, 190, 196, a)
+        d.line([x, y, x + ln, y], fill=c, width=max(1, int(1.6 * ss)))
+    # 해질녘 반사
+    refl = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    dr = ImageDraw.Draw(refl)
+    for i in range(16):
+        y = (500 + i * 14) * ss
+        wgt = 1 - i / 16
+        dr.ellipse([(700 - 210 * wgt) * ss, y, (700 + 210 * wgt) * ss, y + 12 * ss],
+                   fill=(246, 178, 104, int(60 * wgt)))
+    refl = refl.filter(ImageFilter.GaussianBlur(10 * ss))
+    im.alpha_composite(refl)
+    # 모래 해변
+    shore = [(0, 470), (200, 455), (420, 480), (640, 462), (860, 486),
+             (1080, 464), (1280, 478)]
+    d.line([(x * ss, y * ss) for (x, y) in shore], fill=(201, 178, 128, 255),
+           width=34 * ss, joint="curve")
+    d.line([(x * ss, y * ss) for (x, y) in shore], fill=(216, 196, 150, 255),
+           width=16 * ss, joint="curve")
+    # 부두
+    dock = (812, 452, 948, 700)
+    d.rectangle([dock[0] * ss, dock[1] * ss, dock[2] * ss, dock[3] * ss],
+                fill=(122, 92, 62, 255))
+    for i in range(10):
+        y = dock[1] + 8 + i * 25
+        d.line([dock[0] * ss, y * ss, dock[2] * ss, y * ss],
+               fill=(96, 70, 46, 255), width=2 * ss)
+    d.rectangle([dock[0] * ss, dock[1] * ss, dock[0] * ss + 10 * ss, dock[3] * ss],
+                fill=(146, 112, 76, 255))
+    d.rectangle([dock[2] * ss - 10 * ss, dock[1] * ss, dock[2] * ss, dock[3] * ss],
+                fill=(146, 112, 76, 255))
+    for (px, py) in [(766, 520), (986, 580)]:
+        d.ellipse([px * ss, py * ss, (px + 40) * ss, (py + 22) * ss],
+                  fill=(94, 88, 74, 255))
+    # 풀/돌
+    grass_tufts(im, (110, 108, 66), 160, ss, rnd_seed=9)
+    grain(im, (70, 70, 48), 300, size=(1, 3), alpha=(18, 50), ss=ss)
+    # 노을 색조
+    warm = Image.new("RGBA", im.size, (240, 150, 80, 0))
+    warm.putalpha(26)
+    im.alpha_composite(warm)
+    vignette(im, (44, 34, 30), 110)
+    return im.resize((W, H), Image.LANCZOS)
+
+
+def bg_festival():
+    ss = 2
+    im = Image.new("RGBA", (W * ss, H * ss), (34, 46, 42, 255))
+    d = ImageDraw.Draw(im)
+    rnd = random.Random(33)
+    for _ in range(90):
+        cx, cy = rnd.uniform(0, W) * ss, rnd.uniform(0, H) * ss
+        rx, ry = rnd.uniform(60, 200) * ss, rnd.uniform(40, 120) * ss
+        col = rnd.choice([(30, 42, 38), (40, 54, 48), (26, 38, 34)])
+        d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=col + (120,))
+    # 자갈 광장
+    d.rounded_rectangle([60 * ss, 330 * ss, 1220 * ss, 700 * ss], 40 * ss,
+                        fill=(58, 58, 50, 255))
+    d.rounded_rectangle([100 * ss, 360 * ss, 1180 * ss, 690 * ss], 30 * ss,
+                        fill=(66, 65, 56, 255))
+    grain(im, (40, 40, 34), 700, size=(1, 3), alpha=(20, 70), ss=ss)
+    grain(im, (120, 112, 96), 200, size=(1, 2), alpha=(20, 50), ss=ss)
+    # 축제 조명 웅덩이
+    for (cx, cy, rx) in [(190, 250, 220), (480, 250, 220), (790, 250, 220),
+                         (1090, 250, 200), (330, 600, 190), (980, 620, 190)]:
+        glow = radial(int(rx * 2 * ss), int(rx * 1.6 * ss), (246, 190, 96), 64)
+        im.alpha_composite(glow, (int((cx - rx) * ss), int((cy - rx * 0.8) * ss)))
+    # 가랜드 전구
+    def garland(x0, y0, x1, y1, sag, n=14):
+        pts = []
+        for i in range(n + 1):
+            t = i / n
+            x = x0 + (x1 - x0) * t
+            y = y0 + (y1 - y0) * t + math.sin(math.pi * t) * sag
+            pts.append((x * ss, y * ss))
+        d.line(pts, fill=(74, 66, 54, 255), width=max(1, int(1.6 * ss)))
+        for i in range(1, n):
+            x, y = pts[i]
+            d.ellipse([x - 5 * ss, y - 2 * ss, x + 5 * ss, y + 8 * ss],
+                      fill=(250, 214, 132, 255))
+            d.ellipse([x - 9 * ss, y - 6 * ss, x + 9 * ss, y + 12 * ss],
+                      fill=(250, 205, 120, 34))
+    garland(20, 60, 640, 40, 90)
+    garland(640, 40, 1260, 70, 80, 12)
+    garland(40, 300, 1240, 300, 40, 20)
+    # 바닥 조명 반사
+    for (x, y) in [(320, 210), (620, 235), (930, 225)]:
+        d.line([x * ss, y * ss, x * ss, (y + 160) * ss],
+               fill=(246, 200, 110, 26), width=26 * ss)
+    grass_tufts(im, (34, 52, 42), 120, ss, rnd_seed=17)
+    vignette(im, (6, 12, 10), 140)
+    return im.resize((W, H), Image.LANCZOS)
+
+
+# ---------------------------------------------------------------- light cone
+def cone(color):
+    n = 256
+    im = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    px = im.load()
+    cx, cy = n / 2, n / 2
+    half = math.radians(55)
+    for y in range(n):
+        for x in range(n):
+            dx, dy = x - cx, y - cy
+            r = math.hypot(dx, dy) / (n / 2)
+            if r > 1 or r < 0.02:
+                continue
+            ang = abs(math.atan2(dy, dx))
+            if ang > half:
+                continue
+            edge = 1 - (ang / half) ** 2.4
+            fade = (1 - r) ** 1.5
+            a = 96 * edge * fade
+            if a > 1:
+                px[x, y] = (color[0], color[1], color[2], min(255, int(a)))
+    return im
+
+
+def shadow():
+    im = Image.new("RGBA", (128, 56), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.ellipse([10, 12, 118, 44], fill=(6, 12, 8, 110))
+    return im.filter(ImageFilter.GaussianBlur(6))
+
+
+def glow(size, color, a=90):
+    return radial(size, size, color, a, 0)
+
+
+# ---------------------------------------------------------------- HUD
+def hud_bar():
+    im = Image.new("RGBA", (W, 86), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    for y in range(86):
+        t = y / 85
+        a = int(226 - 90 * t ** 1.6)
+        d.line([0, y, W, y], fill=(11, 22, 17, a))
+    d.line([0, 85, W, 85], fill=(233, 166, 63, 70), width=2)
+    return im
+
+
+def plate(w, h, radius=10, fill=(14, 26, 20, 176), edge=(233, 166, 63, 90)):
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, w - 2, h - 2], radius, fill=fill, outline=edge, width=2)
+    return im
+
+
+def map_label(name, sub, accent=AMBER):
+    im = plate(352, 64, 10)
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 6, 63], 3, fill=accent + (255,))
+    text(d, (20, 10), name, 24, CREAM + (255,))
+    text(d, (20, 40), sub, 11, accent + (235,), bold=True, letterspace=1.2)
+    return im
+
+
+def gauge_label():
+    im = plate(104, 26, 7, (14, 26, 20, 150), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    text(d, (10, 5), "감지도", 12, (206, 216, 204, 255), bold=True)
+    return im
+
+
+def slot(empty=True):
+    im = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    if empty:
+        d.rounded_rectangle([1, 1, 38, 38], 8, fill=(255, 255, 255, 16),
+                            outline=(255, 255, 255, 60), width=2)
+    else:
+        d.rounded_rectangle([1, 1, 38, 38], 8, fill=(233, 166, 63, 56),
+                            outline=(233, 166, 63, 220), width=2)
+    return im
+
+
+def controls():
+    im = plate(392, 40, 9, (12, 24, 18, 168), (255, 255, 255, 34))
+    d = ImageDraw.Draw(im)
+    x = 16
+    for key, label in (("WASD", "이동"), ("E", "줍기"), ("R", "다시 시작")):
+        kw = font(12, True).getlength(key) + 14
+        d.rounded_rectangle([x, 8, x + kw, 31], 5, fill=(233, 166, 63, 235))
+        text(d, (x + kw / 2, 12), key, 11, (24, 34, 26, 255), anchor="ma")
+        x += kw + 7
+        x += text(d, (x, 12), label, 12, (226, 233, 222, 235))
+        x += 14
+    return im
+
+
+def prompt():
+    im = plate(112, 44, 10, (14, 26, 20, 210), (233, 166, 63, 190))
+    d = ImageDraw.Draw(im)
+    d.ellipse([9, 7, 39, 37], fill=(233, 166, 63, 255))
+    text(d, (24, 14), "E", 16, (26, 36, 26, 255), anchor="ma")
+    text(d, (47, 14), "줍기", 14, CREAM + (255,))
+    return im
+
+
+def toast(s="음식 +1"):
+    im = Image.new("RGBA", (150, 44), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([2, 2, 147, 41], 9, fill=(233, 166, 63, 232))
+    text(d, (75, 10), s, 18, (28, 34, 26, 255), anchor="ma")
+    return im
+
+
+def hidden_badge():
+    im = Image.new("RGBA", (104, 34), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 102, 32], 8, fill=(16, 38, 24, 216),
+                        outline=(122, 190, 118, 200), width=2)
+    d.ellipse([11, 11, 27, 27], fill=(116, 178, 108, 250))
+    d.ellipse([15, 15, 23, 23], fill=(38, 74, 42, 255))
+    text(d, (34, 8), "은신 중", 14, (224, 244, 214, 255))
+    return im
+
+
+def alert_mark():
+    im = Image.new("RGBA", (34, 44), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.ellipse([3, 12, 31, 40], fill=(220, 83, 48, 245))
+    text(d, (17, 17), "!", 20, (255, 246, 232, 255), anchor="ma")
+    d.polygon([(13, 16), (17, 4), (21, 16)], fill=(220, 83, 48, 245))
+    return im
+
+
+# ---------------------------------------------------------------- overlays
+def intro(i, name, time_label, foods):
+    im = Image.new("RGBA", (W, H), (6, 12, 9, 168))
+    d = ImageDraw.Draw(im)
+    d.rectangle([0, 0, W, 8], fill=AMBER + (230,))
+    d.rectangle([0, H - 8, W, H], fill=AMBER + (230,))
+    # 왼쪽 텍스트 블록
+    d.rectangle([96, 250, 102, 470], fill=AMBER + (255,))
+    text(d, (126, 246), f"MAP 0{i + 1} / 03", 15, AMBER + (255,), letterspace=3.0)
+    text(d, (126, 272), name, 56, CREAM + (255,))
+    text(d, (126, 350), time_label, 24, AMBER + (255,))
+    d.line([126, 400, 620, 400], fill=(255, 255, 255, 46), width=2)
+    text(d, (126, 416), "음식 3개를 모아 다음 캠핑장으로", 19, (206, 218, 204, 255))
+    text(d, (126, 448), "들키면 그 자리에서 끝  ·  WASD 이동, E 줍기", 15,
+         (146, 164, 152, 255), bold=False)
+    # 오른쪽 음식 3개
+    for k, f in enumerate(foods):
+        cx = 930 + k * 116
+        d.ellipse([cx - 46, 330, cx + 46, 422], fill=(255, 255, 255, 20),
+                  outline=(233, 166, 63, 90), width=2)
+        im.alpha_composite(f, (int(cx - f.width / 2), int(376 - f.height / 2)))
+        text(d, (cx, 434), f"{i * 3 + k + 1}", 12, (170, 184, 168, 255), anchor="ma")
+    text(d, (930, 300), "THIS MAP", 11, AMBER + (255,), bold=True, letterspace=2.4)
+    text(d, (W - 96, H - 44), "PICO'S CAMP HEIST", 11, (120, 138, 126, 220),
+         bold=True, letterspace=2.6, anchor="ra")
+    return im
+
+
+def overlay_end(kind="caught"):
+    im = Image.new("RGBA", (W, H), (6, 10, 8, 190))
+    d = ImageDraw.Draw(im)
+    col = (220, 83, 48) if kind == "caught" else (233, 166, 63)
+    title = "들켰다!" if kind == "caught" else "클리어!"
+    sub = ("감지 게이지 100%  —  캠핑장 사람들에게 들켰다"
+           if kind == "caught" else "음식 9개, 세 캠핑장을 모두 털었다")
+    hint = "R  다시 시작"
+    d.rounded_rectangle([300, 232, 980, 500], 22, fill=(13, 24, 18, 236),
+                        outline=col + (230,), width=3)
+    d.rectangle([300, 232, 980, 240], fill=col + (255,))
+    text(d, (640, 268), title, 66, CREAM + (255,), anchor="ma")
+    text(d, (640, 356), sub, 21, (206, 218, 204, 255), anchor="ma", bold=False)
+    d.line([420, 404, 860, 404], fill=(255, 255, 255, 34), width=2)
+    kw = 210
+    d.rounded_rectangle([640 - kw / 2, 424, 640 + kw / 2, 468], 9,
+                        fill=col + (235,))
+    text(d, (640, 433), hint, 18, (28, 34, 26, 255), anchor="ma")
+    text(d, (640, 518), "PICO'S CAMP HEIST", 11, (120, 138, 126, 200),
+         bold=True, letterspace=2.8, anchor="ma")
+    return im
+
+
+def dark_vignette():
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    mask = Image.new("L", (W, H), 0)
+    d = ImageDraw.Draw(mask)
+    d.ellipse([-W * 0.15, -H * 0.2, W * 1.15, H * 1.2], fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(90))
+    im.putalpha(mask.point(lambda v: int((255 - v) * 0.55)))
+    out = Image.new("RGBA", (W, H), (4, 8, 6, 255))
+    out.putalpha(im.getchannel("A"))
+    return out
+
+
+def red_vignette():
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    mask = Image.new("L", (W, H), 255)
+    d = ImageDraw.Draw(mask)
+    d.ellipse([W * 0.06, H * 0.08, W * 0.94, H * 0.92], fill=0)
+    mask = mask.filter(ImageFilter.GaussianBlur(80))
+    out = Image.new("RGBA", (W, H), (198, 50, 34, 255))
+    out.putalpha(mask.point(lambda v: int(v * 0.9)))
+    return out
+
+
+def gauge_bg():
+    im = Image.new("RGBA", (244, 26), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 242, 24], 8, fill=(8, 16, 12, 210),
+                        outline=(255, 255, 255, 44), width=2)
+    for i in range(1, 5):
+        x = 2 + i * 48
+        d.line([x, 6, x, 20], fill=(255, 255, 255, 26), width=1)
+    return im
+
+
+def map_clear():
+    im = Image.new("RGBA", (W, H), (6, 12, 9, 120))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([370, 288, 910, 432], 18, fill=(13, 24, 18, 232),
+                        outline=AMBER + (220,), width=3)
+    text(d, (640, 310), "MAP CLEAR", 15, AMBER + (255,), anchor="ma", letterspace=4.0)
+    text(d, (640, 338), "음식 3개 확보", 34, CREAM + (255,), anchor="ma")
+    text(d, (640, 390), "다음 캠핑장으로 이동합니다", 16, (196, 210, 196, 255),
+         anchor="ma", bold=False)
+    return im
+
+
+# ---------------------------------------------------------------- build
+def build_all():
+    os.makedirs(OUT, exist_ok=True)
+
+    def save(im, name):
+        im.save(os.path.join(OUT, name))
+
+    bg_forest().convert("RGB").save(os.path.join(OUT, "bg_forest.png"))
+    bg_lake().convert("RGB").save(os.path.join(OUT, "bg_lake.png"))
+    bg_festival().convert("RGB").save(os.path.join(OUT, "bg_festival.png"))
+
+    for name, col in (("day", (255, 246, 214)), ("sunset", (255, 190, 120)),
+                      ("night", (255, 214, 140))):
+        save(cone(col), f"cone_{name}.png")
+
+    save(shadow(), "shadow.png")
+    save(glow(160, (233, 166, 63), 70), "glow_food.png")
+    save(glow(420, (246, 200, 110), 44), "glow_lamp.png")
+    save(dark_vignette(), "vignette_dark.png")
+    save(red_vignette(), "vignette_red.png")
+
+    save(hud_bar(), "hud_bar.png")
+    save(gauge_label(), "hud_gauge.png")
+    save(gauge_bg(), "hud_gauge_bg.png")
+    save(slot(True), "slot_empty.png")
+    save(slot(False), "slot_full.png")
+    save(controls(), "hud_controls.png")
+    save(prompt(), "hud_prompt.png")
+    save(toast(), "hud_toast.png")
+    save(hidden_badge(), "hud_hidden.png")
+    save(alert_mark(), "mark_alert.png")
+
+    names = [("숲속 캠핑장", "한낮  ·  MAP 01", AMBER),
+             ("호숫가 캠핑장", "해 질 녘  ·  MAP 02", (233, 141, 79)),
+             ("야간 축제 캠핑장", "밤  ·  MAP 03", (238, 200, 120))]
+    for i, (nm, sub, accent) in enumerate(names):
+        save(map_label(nm, sub, accent), f"label_map{i}.png")
+
+    sets = [("숲속 캠핑장", "한낮  —  햇빛 아래, 사람은 두 명"),
+            ("호숫가 캠핑장", "해 질 녘  —  낚시꾼과 산책하는 사람"),
+            ("야간 축제 캠핑장", "밤  —  불빛과 인파, 다섯 명")]
+    food_set = [["stew", "sausage", "mallow"],
+                ["sandwich", "corn", "fish"],
+                ["chicken", "cake", "soda"]]
+    for i, (nm, tm) in enumerate(sets):
+        ims = [Image.open(os.path.join(OUT, f"food_{k}.png")).convert("RGBA")
+               for k in food_set[i]]
+        save(intro(i, nm, tm, ims), f"intro_{i}.png")
+
+    save(overlay_end("caught"), "over_caught.png")
+    save(overlay_end("clear"), "over_clear.png")
+    save(map_clear(), "over_mapclear.png")
+    print("scenes/hud saved ->", OUT)
+
+
+if __name__ == "__main__":
+    A.build_all()
+    build_all()
