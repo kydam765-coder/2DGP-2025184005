@@ -6,7 +6,8 @@
 WASD 이동  ·  E 음식 줍기  ·  R 다시 시작  ·  ESC 종료
 """
 import pico2d
-from pico2d import (SDLK_a, SDLK_d, SDLK_e, SDLK_LEFT, SDLK_RIGHT, SDLK_r,
+from pico2d import (SDLK_a, SDLK_d, SDLK_e, SDLK_LEFT, SDLK_LSHIFT,
+                    SDLK_RSHIFT, SDLK_RIGHT, SDLK_r,
                     SDLK_s, SDLK_DOWN, SDLK_UP, SDLK_w, SDLK_ESCAPE,
                     SDL_KEYDOWN, SDL_KEYUP, SDL_QUIT, close_canvas,
                     get_events, get_time, hide_lattice, open_canvas,
@@ -21,8 +22,10 @@ KEYMAP = {
     SDLK_s: "down", SDLK_DOWN: "down",
     SDLK_e: "collect",
     SDLK_r: "restart",
+    SDLK_LSHIFT: "sprint", SDLK_RSHIFT: "sprint",
 }
 ONESHOT = {"collect", "restart"}
+HOLDS = {"left", "right", "up", "down", "sprint"}
 
 
 def main():
@@ -52,7 +55,7 @@ def main():
                     hold.add(act)
             elif e.type == SDL_KEYUP:
                 act = KEYMAP.get(e.key)
-                if act in ("left", "right", "up", "down"):
+                if act in HOLDS:
                     hold.discard(act)
 
         now = get_time()

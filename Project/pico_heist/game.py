@@ -7,20 +7,40 @@ main.py 가 pico2d 입력을 hold/press 로 바꿔 Game.update() 에 넘긴다.
 import math
 import os
 
-from pico2d import clear_canvas, draw_rectangle, load_image
+from pico2d import clear_canvas, draw_rectangle, load_image, load_wav
 
 from maps import MAPS
 
 W, H = 1280, 720
 
-# 감지 튜닝 값 (기획서의 예시 값과 같은 계열)
-NEAR = 150.0            # 이 안쪽은 무조건 들킨다
-FAR = 320.0             # 시야 + 엄폐물 판정이 적용되는 최대 거리
+# ---- 이동 / 발소리
+WALK_SPEED = 205.0      # 기본 걷기
+RUN_SPEED = 320.0       # Shift 달리기 (걷기의 1.56배)
+NOISE_WALK = 110.0      # 걷기 발소리가 들리는 반경
+NOISE_RUN = 270.0       # 달리기 발소리 반경
+NOISE_BUSH = 0.55       # 수풀 안에서는 발소리가 줄어든다
+STRIDE_WALK = 58.0      # 발소리 한 번 = 이만큼 이동
+STRIDE_RUN = 96.0
+
+# ---- 감지 튜닝 값
+NEAR = 180.0            # 이 안쪽은 무조건 들킨다 (기존 150 → 180)
+FAR = 370.0             # 시야 + 엄폐물 판정이 적용되는 최대 거리 (기존 320 → 370)
 HALF_FOV = math.radians(55)
 RISE_NEAR = 38.0        # %/s
-RISE_FAR = 14.0
+RISE_FAR = 15.0
+RISE_HEAR_WALK = 9.0    # 발소리만 들렸을 때 %/s
+RISE_HEAR_RUN = 21.0
 FALL = 26.0
 PICKUP_NOISE = 6.0
+
+# ---- 추격
+CHASE_SPEED = 262.0     # 달리기(320)보다 느리다 → 달리면 따돌릴 수 있다
+CHASE_HOLD = 100.0      # 추격 중 게이지 상한
+CHASE_FALL = 24.0       # 시야에서 벗어나면 게이지가 내려가는 속도
+CHASE_ESCAPE = 34.0     # 게이지가 이 아래로 떨어지면 추격 종료
+CHASE_GIVEUP = 1.7      # 이 시간 동안 못 보면 포기
+CHASE_MAX = 9.0         # 최대 추격 시간
+CATCH_DIST = 46.0       # 이 안까지 붙으면 잡힌다
 
 FOOD_ORDER = [kind for m in MAPS for (kind, _, _) in m["foods"]]
 
@@ -102,12 +122,18 @@ class Player:
         self.frame = 0
         self.anim = 0.0
         self.moving = False
-        self.speed = 205.0
+        self.sprinting = False
+        self.speed = WALK_SPEED
+        self.moved = 0.0
 
     def update(self, dt, hold, solids, no_go):
         dx = (1 if "right" in hold else 0) - (1 if "left" in hold else 0)
         dy = (1 if "down" in hold else 0) - (1 if "up" in hold else 0)
         self.moving = bool(dx or dy)
+        self.sprinting = self.moving and "sprint" in hold
+        speed = RUN_SPEED if self.sprinting else WALK_SPEED
+        self.speed = speed
+        ox, oy = self.x, self.y
         if self.moving:
             ln = math.hypot(dx, dy)
             dx, dy = dx / ln, dy / ln
@@ -115,17 +141,18 @@ class Player:
                 self.dir = "right" if dx > 0 else "left"
             else:
                 self.dir = "down" if dy > 0 else "up"
-            nx = self.x + dx * self.speed * dt
+            nx = self.x + dx * speed * dt
             if self._free(nx, self.y, solids, no_go):
                 self.x = nx
-            ny = self.y + dy * self.speed * dt
+            ny = self.y + dy * speed * dt
             if self._free(self.x, ny, solids, no_go):
                 self.y = ny
-            self.anim += dt
+            self.anim += dt * (1.5 if self.sprinting else 1.0)
             self.frame = int(self.anim / 0.14) % 2
         else:
             self.anim = 0.0
             self.frame = 0
+        self.moved = math.hypot(self.x - ox, self.y - oy)
 
     def _free(self, x, y, solids, no_go):
         if not (36 <= x <= W - 36 and 128 <= y <= H - 18):
@@ -157,10 +184,76 @@ class Camper:
         f = data.get("facing")
         self.base = math.atan2(f[1], f[0]) if f else 0.0
         self.angle = self.base
+        self.mode = "patrol"      # patrol / chase / return
+        self.lost = 0.0           # 추격 중 시야를 놓친 시간
+        self.chase_t = 0.0
+        self.ret = 0              # 복귀 목표 경로 index
+        self.heard = False
+
+    # ---------------------------------------------------------- 상태
+    def begin_chase(self):
+        self.mode = "chase"
+        self.lost = 0.0
+        self.chase_t = 0.0
+        self.alarm = 1.0
+
+    def give_up(self):
+        self.mode = "return"
+        self.ret = self.nearest_node()
+        self.alarm = 0.0
+
+    def nearest_node(self):
+        best, bd = 0, 1e9
+        for i, (x, y) in enumerate(self.path):
+            d = math.hypot(x - self.x, y - self.y)
+            if d < bd:
+                bd, best = d, i
+        return best
+
+    def hears(self, p, radius):
+        if radius <= 0:
+            return False
+        d = math.hypot(p.x - self.x, (p.y - 24) - (self.y - 26))
+        return d <= radius
+
+    def look_at(self, p):
+        self.angle = math.atan2((p.y - 24) - (self.y - 26), p.x - self.x)
+        self.base = self.angle
+
+    def _free(self, x, y, solids):
+        if not (24 <= x <= W - 24 and 120 <= y <= H - 14):
+            return False
+        for r in solids:
+            if circle_rect(x, y, 20.0, r):
+                return False
+        return True
+
+    def move_toward(self, tx, ty, dt, speed, solids):
+        dx, dy = tx - self.x, ty - self.y
+        d = math.hypot(dx, dy)
+        if d < 2:
+            return 0.0
+        self.angle = math.atan2(dy, dx)
+        self.base = self.angle
+        step = min(d, speed * dt)
+        ux, uy = dx / d * step, dy / d * step
+        if self._free(self.x + ux, self.y + uy, solids):
+            self.x += ux
+            self.y += uy
+        else:                      # 소품에 걸리면 축별로 미끄러진다
+            if self._free(self.x + ux, self.y, solids):
+                self.x += ux
+            if self._free(self.x, self.y + uy, solids):
+                self.y += uy
+        self.anim += dt
+        self.frame = int(self.anim / 0.20) % 2
+        return step
 
     def update(self, dt):
         self.t += dt
         self.alarm = max(0.0, self.alarm - dt * 3.0)
+        if self.mode != "patrol":
+            return
         if self.sit or len(self.path) == 1:
             self.angle = self.base + math.sin(self.t * 0.9) * (self.scan * 0.5 if self.sit else self.scan)
             self.frame = 0
@@ -248,6 +341,14 @@ class Game:
         if base not in os.sys.path:
             os.sys.path.insert(0, base)
         os.chdir(base)          # pico2d 는 상대 경로로 이미지를 읽는다
+        self.sfx = {}
+        for name, vol in (("sfx_step_walk", 46), ("sfx_step_run", 92)):
+            try:
+                w = load_wav(os.path.join("assets", name + ".wav"))
+                w.set_volume(vol)
+                self.sfx[name] = w
+            except Exception:
+                pass            # 사운드 장치가 없어도 게임은 돈다
         self.reset()
 
     # ---------------------------------------------------------- assets
@@ -286,6 +387,11 @@ class Game:
         self.prompt_food = None
         self.hidden = False
         self.hidden_bush = None
+        self.chaser = None
+        self.noise = 0.0
+        self.step_acc = 0.0
+        self.chase_count = 0
+        self.escaped = 0
 
     def goto_next_map(self):
         self.map_index += 1
@@ -318,6 +424,17 @@ class Game:
         # ---- playing
         self.player.update(dt, hold, self.solids, self.no_go)
         for c in self.campers:
+            if c.mode == "chase":
+                continue
+            if c.mode == "return":
+                c.update(dt)
+                tx, ty = c.path[c.ret]
+                c.move_toward(tx, ty, dt, CHASE_SPEED * 0.5, self.solids)
+                if math.hypot(tx - c.x, ty - c.y) < 8:
+                    c.mode = "patrol"
+                    c.idx = (c.ret + 1) % len(c.path)
+                    c.timer = c.wait
+                continue
             c.update(dt)
 
         # 수풀 속에 몸을 숨겼는가 (수풀 잎에 발이 들어가면 은신)
@@ -328,26 +445,26 @@ class Game:
                 break
         self.hidden = self.hidden_bush is not None
 
-        seen = None
+        # 발소리 (걷기 작게 / 달리기 크게)
+        self.update_noise(dt)
+
+        # 소리를 들은 사람은 걸음을 멈추고 고개를 돌린다
         for c in self.campers:
-            s = c.sees(self.player, self.covers)
-            if s == "far" and self.hidden:
-                s = None          # 수풀에 숨으면 멀리서는 보이지 않는다
-            if s:
+            c.heard = False
+            if c.mode != "patrol":
+                continue
+            if c.hears(self.player, self.noise):
+                c.heard = True
+                c.look_at(self.player)
                 c.alarm = 1.0
-            if s == "near":
-                seen = "near"
-            elif s == "far" and seen != "near":
-                seen = "far"
-        if seen == "near":
-            self.gauge += RISE_NEAR * dt
-        elif seen == "far":
-            self.gauge += RISE_FAR * dt
+                if c.timer <= 0 and len(c.path) > 1:
+                    c.timer = 0.35
+
+        if self.chaser is not None:
+            self.update_chase(dt)
         else:
-            self.gauge -= FALL * dt
-        self.gauge = max(0.0, min(100.0, self.gauge))
-        if self.gauge >= 100.0:
-            self.state = "caught"
+            self.update_gauge(dt)
+        if self.state != "playing":
             return
 
         self.prompt_food = self.nearest_food(78)
@@ -364,6 +481,97 @@ class Game:
                 else:
                     self.state = "map_clear"
                     self.timer = 1.7
+
+    # ---------------------------------------------------------- 발소리 / 감지
+    def update_noise(self, dt):
+        p = self.player
+        if p.moved > 0.4:
+            base = NOISE_RUN if p.sprinting else NOISE_WALK
+            self.noise = base * (NOISE_BUSH if self.hidden else 1.0)
+            self.step_acc += p.moved
+            stride = STRIDE_RUN if p.sprinting else STRIDE_WALK
+            if self.step_acc >= stride:
+                self.step_acc -= stride
+                w = self.sfx.get("sfx_step_run" if p.sprinting else "sfx_step_walk")
+                if w is not None:
+                    try:
+                        w.play()
+                    except Exception:
+                        pass
+        else:
+            self.noise = 0.0
+            self.step_acc = 0.0
+
+    def heard_by(self, camper):
+        return self.noise > 0 and camper.hears(self.player, self.noise)
+
+    def update_gauge(self, dt):
+        seen = None
+        for c in self.campers:
+            s = c.sees(self.player, self.covers)
+            if s == "far" and self.hidden:
+                s = None          # 수풀에 숨으면 멀리서는 보이지 않는다
+            if s:
+                c.alarm = 1.0
+            if s == "near":
+                seen = "near"
+            elif s == "far" and seen != "near":
+                seen = "far"
+
+        heard = any(c.heard for c in self.campers)
+        if seen == "near":
+            rise = RISE_NEAR
+        elif seen == "far":
+            rise = RISE_FAR
+        else:
+            rise = 0.0
+        if heard:
+            rise = max(rise, RISE_HEAR_RUN if self.player.sprinting
+                       else RISE_HEAR_WALK)
+        if rise == 0.0:
+            rise = -FALL
+
+        self.gauge = max(0.0, min(100.0, self.gauge + rise * dt))
+        if self.gauge >= 100.0:
+            self.start_chase()
+
+    def start_chase(self):
+        if not self.campers:
+            return
+        pool = [c for c in self.campers if c.mode == "patrol"] or self.campers
+        c = min(pool, key=lambda k: math.hypot(k.x - self.player.x,
+                                              k.y - self.player.y))
+        c.begin_chase()
+        self.chaser = c
+        self.gauge = CHASE_HOLD
+        self.chase_count += 1
+
+    def update_chase(self, dt):
+        c = self.chaser
+        c.chase_t += dt
+        c.move_toward(self.player.x, self.player.y, dt, CHASE_SPEED, self.solids)
+        d = math.hypot(c.x - self.player.x, (c.y - 26) - (self.player.y - 24))
+        if d <= CATCH_DIST:
+            self.state = "caught"
+            self.chaser = None
+            return
+
+        s = c.sees(self.player, self.covers)
+        if s == "far" and self.hidden:
+            s = None
+        if s:
+            c.lost = 0.0
+            self.gauge = CHASE_HOLD
+        else:
+            c.lost += dt
+            self.gauge = max(0.0, self.gauge - CHASE_FALL * dt)
+
+        if (c.lost >= CHASE_GIVEUP or self.gauge <= CHASE_ESCAPE
+                or c.chase_t >= CHASE_MAX):
+            c.give_up()
+            self.chaser = None
+            self.escaped += 1
+            self.gauge = min(self.gauge, 50.0)
 
     def nearest_food(self, r):
         best, bd = None, r
@@ -392,6 +600,15 @@ class Game:
         cone = self.img(self.map["cone"])
         for c in self.campers:
             cone.composite_draw(-c.angle, "", c.x, H - c.y + 26, 680, 680)
+
+        # 발소리가 퍼지는 반경 (걷기 작게 / 달리기 크게)
+        if self.noise > 0 and self.state == "playing":
+            ring = self.img("fx_ring.png")
+            a = 0.46 if self.player.sprinting else 0.30
+            ring.opacify(a * (0.82 + 0.18 * math.sin(self.time * 8.0)))
+            ring.draw(self.player.x, H - self.player.y + 4,
+                      self.noise * 2.0, self.noise * 1.12)
+            ring.opacify(1.0)
 
         # 음식 발광
         for f in self.foods:
@@ -489,6 +706,13 @@ class Game:
             badge.opacify(0.80 + 0.16 * math.sin(self.time * 4.0))
             badge.draw(self.player.x, H - self.player.y + 82, 104, 34)
             badge.opacify(1.0)
+
+        # 추격 중 표시
+        if self.chaser is not None and self.state == "playing":
+            b = self.img("hud_chase.png")
+            b.opacify(0.82 + 0.18 * math.sin(self.time * 9.0))
+            b.draw(W / 2, H - 116, 372, 60)
+            b.opacify(1.0)
 
         # 음식 9칸
         sx = W / 2 - 212

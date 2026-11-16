@@ -358,11 +358,18 @@ def slot(empty=True):
 
 
 def controls():
-    im = plate(392, 40, 9, (12, 24, 18, 168), (255, 255, 255, 34))
+    items = [("WASD", "이동"), ("SHIFT", "달리기"), ("E", "줍기"),
+             ("R", "다시 시작")]
+    fk, fl = font(11, True), font(12, True)
+    spans, x = [], 16
+    for key, label in items:
+        kw = fk.getlength(key) + 14
+        spans.append((key, label, kw))
+        x += kw + 7 + fl.getlength(label) + 14
+    im = plate(int(x), 40, 9, (12, 24, 18, 168), (255, 255, 255, 34))
     d = ImageDraw.Draw(im)
     x = 16
-    for key, label in (("WASD", "이동"), ("E", "줍기"), ("R", "다시 시작")):
-        kw = font(12, True).getlength(key) + 14
+    for key, label, kw in spans:
         d.rounded_rectangle([x, 8, x + kw, 31], 5, fill=(233, 166, 63, 235))
         text(d, (x + kw / 2, 12), key, 11, (24, 34, 26, 255), anchor="ma")
         x += kw + 7
@@ -396,6 +403,31 @@ def hidden_badge():
     d.ellipse([11, 11, 27, 27], fill=(116, 178, 108, 250))
     d.ellipse([15, 15, 23, 23], fill=(38, 74, 42, 255))
     text(d, (34, 8), "은신 중", 14, (224, 244, 214, 255))
+    return im
+
+
+def chase_banner():
+    im = Image.new("RGBA", (372, 60), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 370, 58], 12, fill=(140, 34, 24, 226),
+                        outline=(255, 132, 96, 232), width=2)
+    d.polygon([(38, 30), (50, 12), (62, 30)], fill=(255, 176, 132, 245))
+    d.rectangle([47, 21, 53, 27], fill=(140, 34, 24, 255))
+    d.rectangle([47, 29, 53, 33], fill=(140, 34, 24, 255))
+    text(d, (78, 8), "추격 중", 21, (255, 238, 226, 255))
+    text(d, (78, 36), "SHIFT 로 달려서 따돌려라", 11, (255, 196, 168, 240),
+         letterspace=0.6)
+    return im
+
+
+def noise_ring():
+    """발소리 반경 표시용 지면 링."""
+    im = Image.new("RGBA", (320, 180), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    for i, a in ((0, 130), (1, 100), (2, 72), (3, 46)):
+        pad = 6 + i * 5
+        d.ellipse([pad, pad * 0.56, 319 - pad, 179 - pad * 0.56],
+                  outline=(255, 241, 206, a), width=3)
     return im
 
 
@@ -535,6 +567,8 @@ def build_all():
     save(prompt(), "hud_prompt.png")
     save(toast(), "hud_toast.png")
     save(hidden_badge(), "hud_hidden.png")
+    save(chase_banner(), "hud_chase.png")
+    save(noise_ring(), "fx_ring.png")
     save(alert_mark(), "mark_alert.png")
 
     names = [("숲속 캠핑장", "한낮  ·  MAP 01", AMBER),
@@ -560,6 +594,44 @@ def build_all():
     print("scenes/hud saved ->", OUT)
 
 
+def write_sfx():
+    """발소리 WAV 2종 (걷기/달리기). 외부 파일 없이 합성한다."""
+    import struct
+    import wave
+
+    sr = 22050
+
+    def step(heavy):
+        dur = 0.12
+        n = int(sr * dur)
+        rnd = random.Random(21 if heavy else 7)
+        lp, out = 0.0, []
+        for i in range(n):
+            t = i / sr
+            env = math.exp(-t * (34 if heavy else 46))
+            f = (72 if heavy else 96) - 18 * (t / dur)
+            body = math.sin(2 * math.pi * f * t) * env
+            nz = rnd.uniform(-1.0, 1.0)
+            lp += 0.22 * (nz - lp)
+            burst = lp * math.exp(-t * (88 if heavy else 118))
+            v = (body * 0.55 + burst * (0.50 if heavy else 0.32))
+            v *= 0.60 if heavy else 0.34
+            out.append(max(-1.0, min(1.0, v)))
+        data = b"".join(struct.pack("<h", int(v * 32767)) for v in out)
+        w = wave.open(os.path.join(OUT, "sfx_step_run.wav" if heavy
+                                   else "sfx_step_walk.wav"), "wb")
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(data)
+        w.close()
+
+    step(False)
+    step(True)
+    print("sfx saved ->", OUT)
+
+
 if __name__ == "__main__":
     A.build_all()
     build_all()
+    write_sfx()
