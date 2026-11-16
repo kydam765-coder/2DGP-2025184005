@@ -1,0 +1,71 @@
+# -*- coding: utf-8 -*-
+"""피코의 캠핑장 습격 — 실행 파일.
+
+    python main.py
+
+WASD 이동  ·  E 음식 줍기  ·  R 다시 시작  ·  ESC 종료
+"""
+import pico2d
+from pico2d import (SDLK_a, SDLK_d, SDLK_e, SDLK_LEFT, SDLK_RIGHT, SDLK_r,
+                    SDLK_s, SDLK_DOWN, SDLK_UP, SDLK_w, SDLK_ESCAPE,
+                    SDL_KEYDOWN, SDL_KEYUP, SDL_QUIT, close_canvas,
+                    get_events, get_time, hide_lattice, open_canvas,
+                    update_canvas)
+
+from game import Game
+
+KEYMAP = {
+    SDLK_a: "left", SDLK_LEFT: "left",
+    SDLK_d: "right", SDLK_RIGHT: "right",
+    SDLK_w: "up", SDLK_UP: "up",
+    SDLK_s: "down", SDLK_DOWN: "down",
+    SDLK_e: "collect",
+    SDLK_r: "restart",
+}
+ONESHOT = {"collect", "restart"}
+
+
+def main():
+    open_canvas(1280, 720)
+    hide_lattice()
+    game = Game()
+
+    hold = set()
+    press = set()
+    running = True
+    last = get_time()
+
+    while running:
+        for e in get_events():
+            if e.type == SDL_QUIT:
+                running = False
+            elif e.type == SDL_KEYDOWN:
+                if e.key == SDLK_ESCAPE:
+                    running = False
+                    continue
+                act = KEYMAP.get(e.key)
+                if act is None:
+                    continue
+                if act in ONESHOT:
+                    press.add(act)
+                else:
+                    hold.add(act)
+            elif e.type == SDL_KEYUP:
+                act = KEYMAP.get(e.key)
+                if act in ("left", "right", "up", "down"):
+                    hold.discard(act)
+
+        now = get_time()
+        dt = min(0.05, max(0.0, now - last))
+        last = now
+
+        game.update(dt, hold, press)
+        game.render()
+        update_canvas()
+        press.clear()
+
+    close_canvas()
+
+
+if __name__ == "__main__":
+    main()
