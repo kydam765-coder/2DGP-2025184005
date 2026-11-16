@@ -460,6 +460,56 @@ def grill():
     return down(im, w, h)
 
 
+def sleepbag():
+    """텐트 안 침낭 (가로로 눕힌 형태)."""
+    w, h, ss = 132, 68, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    p.rr((4, 14, 128, 60), 16, "#4E5E3E")
+    p.rr((9, 19, 123, 55), 13, "#6E8052")
+    p.rr((9, 19, 123, 34), 13, "#7D9060")
+    # 이불 접힌 선
+    for x in (56, 84, 108):
+        p.pline([(x, 22), (x, 52)], "#5C6C44", 1.4)
+    # 베개
+    p.rr((10, 21, 40, 53), 10, "#E8E1CB")
+    p.rr((13, 24, 37, 50), 8, "#F1EBD8")
+    p.pline([(14, 37), (36, 37)], "#D5CCB2", 1.2)
+    # 지퍼
+    p.pline([(46, 57), (124, 57)], "#3E4A32", 1.6)
+    p.ell((60, 54, 68, 62), "#B9B29C")
+    return down(im, w, h)
+
+
+def sleeper():
+    """침낭에서 자는 사람 (머리는 왼쪽)."""
+    w, h, ss = 140, 72, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    skin = SKIN[2]
+    hair = HAIR[1]
+    # 담요
+    p.rr((30, 12, 136, 58), 14, "#B4553A")
+    p.rr((30, 12, 136, 28), 12, "#C4653F")
+    p.rr((44, 8, 78, 34), 12, "#C4653F")     # 어깨 솟은 부분
+    for x in (74, 100, 122):
+        p.pline([(x, 14), (x, 56)], "#9C452E", 1.4)
+    p.pline([(34, 40), (132, 40)], "#9C452E", 1.0)
+    # 베개에 기댄 머리
+    p.ell((8, 20, 46, 56), skin)
+    p.ell((14, 44, 34, 56), "#D9A882")
+    p.pie((8, 16, 46, 44), 180, 360, hair)
+    p.ell((7, 18, 47, 34), hair)
+    # 감은 눈 + 입
+    p.pline([(17, 40), (24, 40)], "#6B4A3C", 1.6)
+    p.pline([(28, 40), (35, 40)], "#6B4A3C", 1.6)
+    p.pline([(24, 47), (30, 47)], "#8E5A48", 1.3)
+    # 담요 밖으로 나온 팔
+    p.rr((44, 50, 68, 58), 4, skin)
+    p.ell((64, 50, 74, 58), skin)
+    return down(im, w, h)
+
+
 # ---------------------------------------------------------------- foods
 FOOD_KINDS = ["stew", "sausage", "mallow", "fish", "sandwich", "corn",
               "chicken", "cake", "soda"]
@@ -576,6 +626,8 @@ def build_all():
     save(speaker(), "prop_speaker.png")
     save(bench(), "prop_bench.png")
     save(grill(), "prop_grill.png")
+    save(sleepbag(), "prop_sleepbag.png")
+    save(sleeper(), "prop_sleeper.png")
 
     for k in FOOD_KINDS:
         save(food(k), f"food_{k}.png")

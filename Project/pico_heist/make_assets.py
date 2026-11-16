@@ -310,6 +310,68 @@ def glow(size, color, a=90):
     return radial(size, size, color, a, 0)
 
 
+def bg_tent():
+    """텐트 안 — 캔버스 벽과 바닥 매트, 가운데 랜턴 빛."""
+    ss = 2
+    im = Image.new("RGBA", (W * ss, H * ss), (74, 58, 44, 255))
+    d = ImageDraw.Draw(im)
+    # 천 패널
+    for i in range(9):
+        x0 = i * W / 9
+        base = 88 if i % 2 else 80
+        d.rectangle([x0 * ss, 0, (x0 + W / 9) * ss, H * ss],
+                    fill=(base, base - 22, base - 40, 255))
+        d.line([x0 * ss, 0, x0 * ss, H * ss], fill=(52, 40, 30, 210), width=3 * ss)
+        d.line([(x0 + 3) * ss, 0, (x0 + 3) * ss, H * ss],
+               fill=(112, 92, 70, 80), width=1 * ss)
+    # 천 이음선
+    d.line([0, 104 * ss, W * ss, 104 * ss], fill=(52, 40, 30, 200), width=3 * ss)
+    d.line([0, 108 * ss, W * ss, 108 * ss], fill=(116, 96, 74, 90), width=1 * ss)
+    # 바닥 매트
+    d.rectangle([0, 150 * ss, W * ss, H * ss], fill=(104, 86, 64, 255))
+    d.line([0, 150 * ss, W * ss, 150 * ss], fill=(132, 110, 82, 235), width=4 * ss)
+    d.rounded_rectangle([320 * ss, 320 * ss, 1000 * ss, 656 * ss], 32 * ss,
+                        fill=(126, 96, 72, 255))
+    d.rounded_rectangle([342 * ss, 338 * ss, 978 * ss, 638 * ss], 26 * ss,
+                        fill=(142, 110, 82, 255))
+    for y in range(352, 640, 26):
+        d.line([352 * ss, y * ss, 968 * ss, y * ss], fill=(128, 98, 72, 110),
+               width=2 * ss)
+    # 지퍼 출입구 (아래 가운데)
+    d.rectangle([594 * ss, 656 * ss, 686 * ss, H * ss], fill=(44, 35, 26, 255))
+    d.polygon([(594 * ss, 656 * ss), (640 * ss, 620 * ss), (686 * ss, 656 * ss)],
+              fill=(58, 46, 34, 255))
+    for x in range(598, 686, 7):
+        d.line([x * ss, 660 * ss, x * ss, H * ss], fill=(92, 76, 58, 190),
+               width=2 * ss)
+    d.line([0, 104 * ss, 40 * ss, 150 * ss], fill=(60, 46, 34, 200), width=3 * ss)
+    # 랜턴 빛
+    im.alpha_composite(radial(W * ss, H * ss, (255, 214, 146), 54, 0, 0.30, 0.30))
+    grain(im, (40, 30, 22), 700, size=(1, 3), alpha=(14, 46), ss=ss)
+    vignette(im, (18, 12, 8), 165)
+    return im.resize((W, H), Image.LANCZOS)
+
+
+def zzz():
+    """자는 사람 위로 떠오르는 Z."""
+    im = Image.new("RGBA", (104, 96), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    for (x, y, s, a) in ((10, 44, 20, 210), (34, 24, 26, 180), (62, 2, 32, 140)):
+        text(d, (x, y), "Z", s, (236, 244, 232, a), bold=True,
+             stroke=2, stroke_fill=(10, 18, 12, 120))
+    return im
+
+
+def door_marker():
+    """텐트 출입구 표시 (지면 발광 + 화살표)."""
+    im = Image.new("RGBA", (168, 76), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.ellipse([12, 24, 156, 72], fill=(233, 166, 63, 40))
+    d.ellipse([26, 34, 142, 68], outline=(255, 214, 140, 150), width=3)
+    d.polygon([(84, 8), (98, 28), (70, 28)], fill=(255, 226, 164, 220))
+    return im
+
+
 # ---------------------------------------------------------------- HUD
 def hud_bar():
     im = Image.new("RGBA", (W, 86), (0, 0, 0, 0))
@@ -379,11 +441,15 @@ def controls():
 
 
 def prompt():
-    im = plate(112, 44, 10, (14, 26, 20, 210), (233, 166, 63, 190))
+    return prompt_label("줍기", 112)
+
+
+def prompt_label(label, w=112):
+    im = plate(w, 44, 10, (14, 26, 20, 210), (233, 166, 63, 190))
     d = ImageDraw.Draw(im)
     d.ellipse([9, 7, 39, 37], fill=(233, 166, 63, 255))
     text(d, (24, 14), "E", 16, (26, 36, 26, 255), anchor="ma")
-    text(d, (47, 14), "줍기", 14, CREAM + (255,))
+    text(d, (47, 14), label, 14, CREAM + (255,))
     return im
 
 
@@ -547,6 +613,7 @@ def build_all():
     bg_forest().convert("RGB").save(os.path.join(OUT, "bg_forest.png"))
     bg_lake().convert("RGB").save(os.path.join(OUT, "bg_lake.png"))
     bg_festival().convert("RGB").save(os.path.join(OUT, "bg_festival.png"))
+    bg_tent().convert("RGB").save(os.path.join(OUT, "bg_tent.png"))
 
     for name, col in (("day", (255, 246, 214)), ("sunset", (255, 190, 120)),
                       ("night", (255, 214, 140))):
@@ -569,13 +636,20 @@ def build_all():
     save(hidden_badge(), "hud_hidden.png")
     save(chase_banner(), "hud_chase.png")
     save(noise_ring(), "fx_ring.png")
+    save(zzz(), "fx_zzz.png")
+    save(door_marker(), "fx_door.png")
+    save(prompt_label("텐트 안으로", 168), "hud_prompt_door.png")
+    save(prompt_label("밖으로 나가기", 176), "hud_prompt_out.png")
     save(alert_mark(), "mark_alert.png")
 
     names = [("숲속 캠핑장", "한낮  ·  MAP 01", AMBER),
              ("호숫가 캠핑장", "해 질 녘  ·  MAP 02", (233, 141, 79)),
-             ("야간 축제 캠핑장", "밤  ·  MAP 03", (238, 200, 120))]
+             ("야간 축제 캠핑장", "밤  ·  MAP 03", (238, 200, 120)),
+             ("텐트 안", "숲속  ·  자는 사람이 있다", (206, 178, 120)),
+             ("텐트 안", "호숫가  ·  자는 사람이 있다", (206, 178, 120))]
     for i, (nm, sub, accent) in enumerate(names):
-        save(map_label(nm, sub, accent), f"label_map{i}.png")
+        fn = f"label_map{i}.png" if i < 3 else f"label_tent{i - 3}.png"
+        save(map_label(nm, sub, accent), fn)
 
     sets = [("숲속 캠핑장", "한낮  —  햇빛 아래, 사람은 두 명"),
             ("호숫가 캠핑장", "해 질 녘  —  낚시꾼과 산책하는 사람"),

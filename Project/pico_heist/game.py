@@ -26,15 +26,24 @@ STRIDE_RUN = 96.0
 NEAR = 180.0            # 이 안쪽은 무조건 들킨다 (기존 150 → 180)
 FAR = 370.0             # 시야 + 엄폐물 판정이 적용되는 최대 거리 (기존 320 → 370)
 HALF_FOV = math.radians(55)
-RISE_NEAR = 38.0        # %/s
-RISE_FAR = 15.0
+RISE_NEAR = 38.0        # 근거리 기본 %/s
+NEAR_BOOST = 1.7        # 붙을수록 가속: d=0 이면 RISE_NEAR * 2.7
+RISE_FAR = 15.0         # 원거리 기본 %/s
 RISE_HEAR_WALK = 9.0    # 발소리만 들렸을 때 %/s
 RISE_HEAR_RUN = 21.0
 FALL = 26.0
 PICKUP_NOISE = 6.0
 
+# ---- 자고 있는 사람
+SLEEP_NEAR = 200.0      # 이 안으로 들어가면 게이지가 오른다
+RISE_SLEEP = 46.0       # 자는 사람 근접 기본 %/s
+SLEEP_BOOST = 2.0       # d=0 이면 RISE_SLEEP * 3.0
+
+# ---- 텐트
+DOOR_LOCK = 0.6         # 들어가고 나온 직후 출입구 재입력 방지
+
 # ---- 추격
-CHASE_SPEED = 262.0     # 달리기(320)보다 느리다 → 달리면 따돌릴 수 있다
+CHASE_SPEED = 240.0     # 달리기(320)보다 느리다 → 달리면 따돌릴 수 있다
 CHASE_HOLD = 100.0      # 추격 중 게이지 상한
 CHASE_FALL = 24.0       # 시야에서 벗어나면 게이지가 내려가는 속도
 CHASE_ESCAPE = 34.0     # 게이지가 이 아래로 떨어지면 추격 종료
@@ -42,7 +51,21 @@ CHASE_GIVEUP = 1.7      # 이 시간 동안 못 보면 포기
 CHASE_MAX = 9.0         # 최대 추격 시간
 CATCH_DIST = 46.0       # 이 안까지 붙으면 잡힌다
 
-FOOD_ORDER = [kind for m in MAPS for (kind, _, _) in m["foods"]]
+
+def _food_layout():
+    """음식 전역 인덱스 — 캠핑장 야외 음식 다음에 그 텐트 음식이 온다."""
+    order, base, n = [], [], 0
+    for m in MAPS:
+        base.append(n)
+        kinds = [k for (k, _, _) in m["foods"]]
+        if m.get("tent"):
+            kinds.append(m["tent"]["food"][0])
+        order.extend(kinds)
+        n += len(kinds)
+    return order, base
+
+
+FOOD_ORDER, FOOD_BASE = _food_layout()
 
 PROP_SPECS = {
     # name: (solid w,h / cover w,h or None / pad / shadow w)
@@ -65,6 +88,8 @@ PROP_SPECS = {
     "prop_speaker":    dict(solid=(40, 18), cover=None, pad=2, shadow=48),
     "prop_bench":      dict(solid=(104, 20), cover=None, pad=2, shadow=104),
     "prop_grill":      dict(solid=(60, 22), cover=None, pad=2, shadow=64),
+    "prop_sleepbag":   dict(solid=(0, 0), cover=None, pad=2, shadow=118),
+    "prop_sleeper":    dict(solid=(0, 0), cover=None, pad=2, shadow=0),
 }
 
 
@@ -189,13 +214,20 @@ class Camper:
         self.chase_t = 0.0
         self.ret = 0              # 복귀 목표 경로 index
         self.heard = False
+        self.napper = data.get("sleep", False)
+        self.sleeping = self.napper
+        self.home = self.path[0]
 
     # ---------------------------------------------------------- 상태
+    def dist_to(self, p):
+        return math.hypot(p.x - self.x, (p.y - 24) - (self.y - 26))
+
     def begin_chase(self):
         self.mode = "chase"
         self.lost = 0.0
         self.chase_t = 0.0
         self.alarm = 1.0
+        self.sleeping = False      # 자다가 깬다
 
     def give_up(self):
         self.mode = "return"
@@ -211,7 +243,7 @@ class Camper:
         return best
 
     def hears(self, p, radius):
-        if radius <= 0:
+        if radius <= 0 or self.sleeping:
             return False
         d = math.hypot(p.x - self.x, (p.y - 24) - (self.y - 26))
         return d <= radius
@@ -252,6 +284,9 @@ class Camper:
     def update(self, dt):
         self.t += dt
         self.alarm = max(0.0, self.alarm - dt * 3.0)
+        if self.sleeping:
+            self.frame = int(self.t * 0.9) % 2      # 천천히 숨쉬는 느낌
+            return
         if self.mode != "patrol":
             return
         if self.sit or len(self.path) == 1:
@@ -281,6 +316,8 @@ class Camper:
         self.frame = int(self.anim / 0.20) % 2
 
     def sees(self, p, covers):
+        if self.sleeping:
+            return None
         dx = p.x - self.x
         dy = (p.y - 24) - (self.y - 26)
         d = math.hypot(dx, dy)
@@ -374,17 +411,23 @@ class Game:
     def load_map(self, i):
         d = MAPS[i]
         self.map = d
+        self.scene = d
+        self.in_tent = False
+        self.tent = None
         self.props = [Prop(n, x, y, s) for (n, x, y, s) in d["props"]]
         self.solids = [p.solid for p in self.props if p.solid]
         self.covers = [p.cover for p in self.props if p.cover]
         self.hides = [p for p in self.props if p.hide]
         self.no_go = [tuple(r) for r in d["no_go"]]
-        self.foods = [Food(k, x, y, i * 3 + j)
+        self.foods = [Food(k, x, y, FOOD_BASE[i] + j)
                       for j, (k, x, y) in enumerate(d["foods"])]
         self.campers = [Camper(c) for c in d["campers"]]
         self.player = Player(*d["player"])
+        self.door = d.get("tent_door")
         self.gauge = 0.0
         self.prompt_food = None
+        self.prompt_door = False
+        self.door_lock = 0.0
         self.hidden = False
         self.hidden_bush = None
         self.chaser = None
@@ -392,6 +435,66 @@ class Game:
         self.step_acc = 0.0
         self.chase_count = 0
         self.escaped = 0
+
+    # ---------------------------------------------------------- 텐트 출입
+    def tent_food_index(self, i=None):
+        i = self.map_index if i is None else i
+        t = MAPS[i].get("tent")
+        if not t:
+            return None
+        return FOOD_BASE[i] + len(MAPS[i]["foods"])
+
+    def map_complete(self):
+        if any(not f.collected for f in self.foods):
+            return False
+        idx = self.tent_food_index()
+        return idx is None or idx in self.collected
+
+    def enter_tent(self):
+        t = self.map["tent"]
+        self.in_tent = True
+        self.tent = t
+        self.scene = t
+        self.props = [Prop(n, x, y, s) for (n, x, y, s) in t["props"]]
+        self.solids = [p.solid for p in self.props if p.solid]
+        self.covers = []
+        self.hides = []
+        self.no_go = [tuple(r) for r in t["no_go"]]
+        k, fx, fy = t["food"]
+        idx = self.tent_food_index()
+        food = Food(k, fx, fy, idx)
+        food.collected = idx in self.collected
+        self.foods = [food]
+        self.campers = [Camper(c) for c in t["campers"]]
+        self.player = Player(*t["player"])
+        self.door = t["door"]
+        self.gauge = 0.0
+        self.prompt_food = None
+        self.prompt_door = False
+        self.door_lock = DOOR_LOCK
+        self.hidden = False
+        self.hidden_bush = None
+        self.chaser = None
+        self.noise = 0.0
+        self.step_acc = 0.0
+
+    def exit_tent(self):
+        i = self.map_index
+        self.load_map(i)
+        for f in self.foods:
+            if f.index in self.collected:
+                f.collected = True
+        ex, ey = self.map["tent_exit"]
+        self.player.x, self.player.y = float(ex), float(ey)
+        self.player.dir = "down"
+        self.state = "playing"
+        self.door_lock = DOOR_LOCK
+        if self.map_complete():
+            if i >= len(MAPS) - 1:
+                self.state = "win"
+            else:
+                self.state = "map_clear"
+                self.timer = 1.7
 
     def goto_next_map(self):
         self.map_index += 1
@@ -422,6 +525,9 @@ class Game:
             return
 
         # ---- playing
+        if self.door_lock > 0:
+            self.door_lock = max(0.0, self.door_lock - dt)
+
         self.player.update(dt, hold, self.solids, self.no_go)
         for c in self.campers:
             if c.mode == "chase":
@@ -434,6 +540,8 @@ class Game:
                     c.mode = "patrol"
                     c.idx = (c.ret + 1) % len(c.path)
                     c.timer = c.wait
+                    if c.napper:
+                        c.sleeping = True      # 다시 눕는다
                 continue
             c.update(dt)
 
@@ -451,7 +559,7 @@ class Game:
         # 소리를 들은 사람은 걸음을 멈추고 고개를 돌린다
         for c in self.campers:
             c.heard = False
-            if c.mode != "patrol":
+            if c.mode != "patrol" or c.sleeping:
                 continue
             if c.hears(self.player, self.noise):
                 c.heard = True
@@ -467,20 +575,40 @@ class Game:
         if self.state != "playing":
             return
 
+        # 출입구 앞인가
+        self.prompt_door = (self.door is not None and self.door_lock <= 0
+                            and in_rect(self.player.x, self.player.y, self.door))
+
+        # 텐트 안에서 쫓기면 문으로 도망칠 수 있다
+        if self.in_tent and self.chaser is not None and self.prompt_door:
+            self.exit_tent()
+            return
+
         self.prompt_food = self.nearest_food(78)
-        if "collect" in press and self.prompt_food is not None:
-            f = self.prompt_food
-            f.collected = True
-            self.collected.add(f.index)
-            self.gauge = min(100.0, self.gauge + PICKUP_NOISE)
-            self.toast_timer = 1.1
-            self.prompt_food = None
-            if all(x.collected for x in self.foods):
-                if self.map_index >= len(MAPS) - 1:
-                    self.state = "win"
-                else:
-                    self.state = "map_clear"
-                    self.timer = 1.7
+        if "collect" in press:
+            if self.prompt_food is not None:
+                self._collect(self.prompt_food)
+                if self.state != "playing":
+                    return
+            elif self.prompt_door:
+                if self.in_tent:
+                    self.exit_tent()
+                elif self.chaser is None:
+                    self.enter_tent()
+                return
+
+    def _collect(self, f):
+        f.collected = True
+        self.collected.add(f.index)
+        self.gauge = min(100.0, self.gauge + PICKUP_NOISE)
+        self.toast_timer = 1.1
+        self.prompt_food = None
+        if self.map_complete() and not self.in_tent:
+            if self.map_index >= len(MAPS) - 1:
+                self.state = "win"
+            else:
+                self.state = "map_clear"
+                self.timer = 1.7
 
     # ---------------------------------------------------------- 발소리 / 감지
     def update_noise(self, dt):
@@ -506,29 +634,32 @@ class Game:
         return self.noise > 0 and camper.hears(self.player, self.noise)
 
     def update_gauge(self, dt):
-        seen = None
+        rise = 0.0
         for c in self.campers:
+            d = c.dist_to(self.player)
+            if c.sleeping:
+                if d < SLEEP_NEAR:      # 자는 사람에게 붙을수록 급격히 오른다
+                    f = 1.0 - d / SLEEP_NEAR
+                    rise = max(rise, RISE_SLEEP * (1.0 + SLEEP_BOOST * f ** 1.15))
+                continue
             s = c.sees(self.player, self.covers)
             if s == "far" and self.hidden:
                 s = None          # 수풀에 숨으면 멀리서는 보이지 않는다
             if s:
                 c.alarm = 1.0
             if s == "near":
-                seen = "near"
-            elif s == "far" and seen != "near":
-                seen = "far"
+                # 붙을수록 가속 — d=0 이면 RISE_NEAR * 2.7
+                f = max(0.0, 1.0 - d / NEAR)
+                rise = max(rise, RISE_NEAR * (1.0 + NEAR_BOOST * f ** 1.4))
+            elif s == "far":
+                f = max(0.0, 1.0 - (d - NEAR) / max(1.0, FAR - NEAR))
+                rise = max(rise, RISE_FAR * (0.7 + 0.6 * f))
 
         heard = any(c.heard for c in self.campers)
-        if seen == "near":
-            rise = RISE_NEAR
-        elif seen == "far":
-            rise = RISE_FAR
-        else:
-            rise = 0.0
         if heard:
             rise = max(rise, RISE_HEAR_RUN if self.player.sprinting
                        else RISE_HEAR_WALK)
-        if rise == 0.0:
+        if rise <= 0.0:
             rise = -FALL
 
         self.gauge = max(0.0, min(100.0, self.gauge + rise * dt))
@@ -538,7 +669,8 @@ class Game:
     def start_chase(self):
         if not self.campers:
             return
-        pool = [c for c in self.campers if c.mode == "patrol"] or self.campers
+        pool = [c for c in self.campers
+                if c.mode == "patrol" and not c.sleeping] or self.campers
         c = min(pool, key=lambda k: math.hypot(k.x - self.player.x,
                                               k.y - self.player.y))
         c.begin_chase()
@@ -586,7 +718,8 @@ class Game:
     # ---------------------------------------------------------- render
     def render(self):
         clear_canvas()
-        self.img(self.map["bg"]).draw_to_origin(0, 0)
+        self.img(self.scene["bg"]).draw_to_origin(0, 0)
+        cone_name = self.scene.get("cone")
 
         # 조명 웅덩이 (밤)
         for p in self.props:
@@ -597,9 +730,20 @@ class Game:
                 g.opacify(1.0)
 
         # 시야 콘
-        cone = self.img(self.map["cone"])
-        for c in self.campers:
-            cone.composite_draw(-c.angle, "", c.x, H - c.y + 26, 680, 680)
+        if cone_name:
+            cone = self.img(cone_name)
+            for c in self.campers:
+                if c.sleeping:
+                    continue        # 자는 사람은 시야가 없다
+                cone.composite_draw(-c.angle, "", c.x, H - c.y + 26, 680, 680)
+
+        # 텐트 출입구 표시
+        if self.door is not None and self.state == "playing":
+            x0, y0, x1, y1 = self.door
+            mk = self.img("fx_door.png")
+            mk.opacify(0.55 + 0.25 * math.sin(self.time * 3.4))
+            mk.draw((x0 + x1) / 2, H - (y0 + y1) / 2 + 6, 168, 76)
+            mk.opacify(1.0)
 
         # 발소리가 퍼지는 반경 (걷기 작게 / 달리기 크게)
         if self.noise > 0 and self.state == "playing":
@@ -663,6 +807,16 @@ class Game:
 
     def draw_camper(self, c):
         self.img("shadow.png").draw(c.x, H - c.y + 3, 44, 18)
+        if c.sleeping:
+            # 침낭 위에서 자는 사람 + 떠오르는 Z
+            im = self.img("prop_sleeper.png")
+            im.draw(c.x, H - c.y + im.h / 2 - 2, im.w, im.h)
+            z = self.img("fx_zzz.png")
+            zz = 0.55 + 0.45 * math.sin(self.time * 1.8)
+            z.opacify(zz)
+            z.draw(c.x - 26, H - c.y + 86 + 4 * math.sin(self.time * 1.4), 104, 96)
+            z.opacify(1.0)
+            return
         if c.sit:
             im = self.img("camper_sit.png")
         else:
@@ -698,7 +852,7 @@ class Game:
             r.opacify(1.0)
 
         self.img("hud_bar.png").draw_to_origin(0, H - 86)
-        self.img(self.map["label"]).draw_to_origin(24, H - 75)
+        self.img(self.scene["label"]).draw_to_origin(24, H - 75)
 
         # 은신 중 표시
         if self.hidden and self.state == "playing":
@@ -716,7 +870,7 @@ class Game:
 
         # 음식 9칸
         sx = W / 2 - 212
-        for i in range(9):
+        for i in range(len(FOOD_ORDER)):
             x = sx + i * 48
             done = i in self.collected
             self.img("slot_full.png" if done else "slot_empty.png").draw_to_origin(x, H - 63)
@@ -750,6 +904,12 @@ class Game:
         if self.state == "playing" and self.prompt_food is not None:
             f = self.prompt_food
             self.img("hud_prompt.png").draw(f.x, H - f.y + 62, 112, 44)
+        elif self.state == "playing" and self.prompt_door and self.door is not None:
+            x0, y0, x1, y1 = self.door
+            name = "hud_prompt_out.png" if self.in_tent else "hud_prompt_door.png"
+            im = self.img(name)
+            im.draw((x0 + x1) / 2, H - (y0 + y1) / 2 - 44,
+                    im.w, im.h)
 
         # 상태 오버레이
         if self.state == "intro":
