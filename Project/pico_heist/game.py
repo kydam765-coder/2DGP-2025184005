@@ -35,7 +35,7 @@ FALL = 26.0
 PICKUP_NOISE = 6.0
 
 # ---- 자고 있는 사람
-SLEEP_NEAR = 200.0      # 이 안으로 들어가면 게이지가 오른다
+SLEEP_NEAR = 260.0      # 이 안으로 들어가면 게이지가 오른다 (음식 166px → 반드시 안쪽)
 RISE_SLEEP = 46.0       # 자는 사람 근접 기본 %/s
 SLEEP_BOOST = 2.0       # d=0 이면 RISE_SLEEP * 3.0
 
