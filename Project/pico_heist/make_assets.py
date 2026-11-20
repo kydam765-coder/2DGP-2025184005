@@ -561,7 +561,7 @@ def alert_mark():
 
 
 # ---------------------------------------------------------------- overlays
-def intro(i, name, time_label, foods):
+def intro(i, name, time_label, foods, has_tent=True):
     im = Image.new("RGBA", (W, H), (6, 12, 9, 168))
     d = ImageDraw.Draw(im)
     d.rectangle([0, 0, W, 8], fill=AMBER + (230,))
@@ -572,7 +572,9 @@ def intro(i, name, time_label, foods):
     text(d, (126, 272), name, 56, CREAM + (255,))
     text(d, (126, 350), time_label, 24, AMBER + (255,))
     d.line([126, 400, 620, 400], fill=(255, 255, 255, 46), width=2)
-    text(d, (126, 416), "음식 5개를 모아 다음 캠핑장으로", 19, (206, 218, 204, 255))
+    tip = ("야외 정상 2개 + 텐트 음식 1개를 모아 다음 캠핑장으로" if has_tent
+           else "야외 정상 2개(마지막 음식 포함)를 모아 다음 캠핑장으로")
+    text(d, (126, 416), tip, 19, (206, 218, 204, 255))
     text(d, (126, 448), "수풀에서 X로 앉으면 완전 은신  ·  WASD 이동, E 줍기", 15,
          (146, 164, 152, 255), bold=False)
     # 오른쪽 음식 5개
@@ -725,7 +727,7 @@ def build_all():
     for i, (nm, tm) in enumerate(sets):
         ims = [Image.open(os.path.join(OUT, f"food_{k}.png")).convert("RGBA")
                for k in food_set[i]]
-        save(intro(i, nm, tm, ims), f"intro_{i}.png")
+        save(intro(i, nm, tm, ims, has_tent=(i < 2)), f"intro_{i}.png")
 
     save(overlay_end("caught"), "over_caught.png")
     save(overlay_end("clear"), "over_clear.png")

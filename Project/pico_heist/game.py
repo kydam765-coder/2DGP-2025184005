@@ -44,7 +44,9 @@ SLEEP_BOOST = 2.0       # d=0 이면 RISE_SLEEP * 3.0
 DOOR_LOCK = 0.6         # 들어가고 나온 직후 출입구 재입력 방지
 
 # ---- 썩은 음식
-ROTTEN_PER_MAP = 1      # 맵마다 1개, 총 3개를 랜덤으로 썩힌다 (카운트 제외)
+GOOD_OUTDOOR = 2        # 야외에서 카운트되는 음식은 맵마다 최대 2개
+#       1·2번 맵: 야외 4개 중 2개 썩음 + 텐트 음식 1개(항상 정상·필수) = 정상 3개
+#       3번 맵:   야외 5개 중 3개 썩음 = 정상 2개
 
 # ---- 추격
 CHASE_SPEED = 240.0     # 달리기(320)보다 느리다 → 달리면 따돌릴 수 있다
@@ -435,13 +437,24 @@ class Game:
         self.timer = 2.2
 
     def _assign_rotten(self):
-        """맵마다 1개씩 랜덤으로 썩힌다 — 단, 마지막(진짜) 음식은 제외."""
+        """야외에서 카운트되는 음식은 맵마다 최대 GOOD_OUTDOOR 개.
+
+        1·2번 맵: 야외 4개 중 2개를 썩혀 정상 2개만 남기고,
+                  텐트 안 음식(마지막·진짜 음식)은 절대 썩히지 않는다.
+                  → 야외만 다 먹어도 텐트 음식이 남아 있으므로 반드시 들어가야 맵 클리어.
+        3번 맵:   야외 5개 중 3개를 썩혀 정상 2개(그중 하나가 진짜 음식)만 남긴다.
+        """
         rng = random.Random(self.seed)
         self.rotten = set()
-        for i in range(len(MAPS)):
-            base, hi = FOOD_BASES[i], FOOD_BASES[i + 1]
-            pool = [j for j in range(base, hi) if j not in REAL_SET]
-            self.rotten.update(rng.sample(pool, min(ROTTEN_PER_MAP, len(pool))))
+        for i, m in enumerate(MAPS):
+            base = FOOD_BASES[i]
+            outdoor = range(base, base + len(m["foods"]))
+            pool = [j for j in outdoor if j not in REAL_SET]
+            # 마지막(진짜) 음식이 야외에 있으면 그 1개도 정상 음식에 포함된다.
+            real_outdoor = REAL_INDICES[i] in outdoor
+            target = max(0, GOOD_OUTDOOR - (1 if real_outdoor else 0))
+            n_rotten = max(0, len(pool) - target)
+            self.rotten.update(rng.sample(pool, min(n_rotten, len(pool))))
 
     def load_map(self, i):
         d = MAPS[i]
