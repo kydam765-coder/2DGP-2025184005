@@ -421,7 +421,7 @@ def slot(empty=True):
 
 def controls():
     items = [("WASD", "이동"), ("SHIFT", "달리기"), ("E", "줍기"),
-             ("R", "다시 시작")]
+             ("X", "수풀 앉기"), ("R", "다시 시작")]
     fk, fl = font(11, True), font(12, True)
     spans, x = [], 16
     for key, label in items:
@@ -444,11 +444,11 @@ def prompt():
     return prompt_label("줍기", 112)
 
 
-def prompt_label(label, w=112):
+def prompt_label(label, w=112, key="E"):
     im = plate(w, 44, 10, (14, 26, 20, 210), (233, 166, 63, 190))
     d = ImageDraw.Draw(im)
     d.ellipse([9, 7, 39, 37], fill=(233, 166, 63, 255))
-    text(d, (24, 14), "E", 16, (26, 36, 26, 255), anchor="ma")
+    text(d, (24, 14), key, 16, (26, 36, 26, 255), anchor="ma")
     text(d, (47, 14), label, 14, CREAM + (255,))
     return im
 
@@ -458,6 +458,36 @@ def toast(s="음식 +1"):
     d = ImageDraw.Draw(im)
     d.rounded_rectangle([2, 2, 147, 41], 9, fill=(233, 166, 63, 232))
     text(d, (75, 10), s, 18, (28, 34, 26, 255), anchor="ma")
+    return im
+
+
+def toast_bad(s="썩은 음식!"):
+    im = Image.new("RGBA", (150, 44), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([2, 2, 147, 41], 9, fill=(178, 52, 38, 238),
+                        outline=(255, 178, 140, 255), width=2)
+    text(d, (75, 10), s, 16, (255, 240, 226, 255), anchor="ma")
+    return im
+
+
+def slot_rotten():
+    im = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 38, 38], 8, fill=(150, 44, 32, 170),
+                        outline=(220, 96, 72, 230), width=2)
+    d.line([(13, 13), (27, 27)], fill=(255, 206, 180, 255), width=3)
+    d.line([(27, 13), (13, 27)], fill=(255, 206, 180, 255), width=3)
+    return im
+
+
+def sit_badge():
+    im = Image.new("RGBA", (124, 34), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 122, 32], 8, fill=(16, 38, 24, 220),
+                        outline=(122, 190, 118, 220), width=2)
+    d.ellipse([10, 10, 26, 26], fill=(116, 178, 108, 250))
+    d.ellipse([14, 14, 22, 22], fill=(38, 74, 42, 255))
+    text(d, (34, 8), "수풀 앉기", 13, (224, 244, 214, 255))
     return im
 
 
@@ -518,17 +548,17 @@ def intro(i, name, time_label, foods):
     text(d, (126, 272), name, 56, CREAM + (255,))
     text(d, (126, 350), time_label, 24, AMBER + (255,))
     d.line([126, 400, 620, 400], fill=(255, 255, 255, 46), width=2)
-    text(d, (126, 416), "음식 3개를 모아 다음 캠핑장으로", 19, (206, 218, 204, 255))
-    text(d, (126, 448), "들키면 그 자리에서 끝  ·  WASD 이동, E 줍기", 15,
+    text(d, (126, 416), "음식 5개를 모아 다음 캠핑장으로", 19, (206, 218, 204, 255))
+    text(d, (126, 448), "수풀에서 X로 앉으면 완전 은신  ·  WASD 이동, E 줍기", 15,
          (146, 164, 152, 255), bold=False)
-    # 오른쪽 음식 3개
+    # 오른쪽 음식 5개
     for k, f in enumerate(foods):
-        cx = 930 + k * 116
+        cx = 780 + k * 110
         d.ellipse([cx - 46, 330, cx + 46, 422], fill=(255, 255, 255, 20),
                   outline=(233, 166, 63, 90), width=2)
         im.alpha_composite(f, (int(cx - f.width / 2), int(376 - f.height / 2)))
-        text(d, (cx, 434), f"{i * 3 + k + 1}", 12, (170, 184, 168, 255), anchor="ma")
-    text(d, (930, 300), "THIS MAP", 11, AMBER + (255,), bold=True, letterspace=2.4)
+        text(d, (cx, 434), f"{i * 5 + k + 1}", 12, (170, 184, 168, 255), anchor="ma")
+    text(d, (780, 300), "THIS MAP", 11, AMBER + (255,), bold=True, letterspace=2.4)
     text(d, (W - 96, H - 44), "PICO'S CAMP HEIST", 11, (120, 138, 126, 220),
          bold=True, letterspace=2.6, anchor="ra")
     return im
@@ -540,7 +570,7 @@ def overlay_end(kind="caught"):
     col = (220, 83, 48) if kind == "caught" else (233, 166, 63)
     title = "들켰다!" if kind == "caught" else "클리어!"
     sub = ("감지 게이지 100%  —  캠핑장 사람들에게 들켰다"
-           if kind == "caught" else "음식 9개, 세 캠핑장을 모두 털었다")
+           if kind == "caught" else "음식 15개, 세 캠핑장을 모두 털었다")
     hint = "R  다시 시작"
     d.rounded_rectangle([300, 232, 980, 500], 22, fill=(13, 24, 18, 236),
                         outline=col + (230,), width=3)
@@ -630,10 +660,15 @@ def build_all():
     save(gauge_bg(), "hud_gauge_bg.png")
     save(slot(True), "slot_empty.png")
     save(slot(False), "slot_full.png")
+    save(slot_rotten(), "slot_rotten.png")
     save(controls(), "hud_controls.png")
     save(prompt(), "hud_prompt.png")
+    save(prompt_label("수풀에 앉기", 168, "X"), "hud_prompt_sit.png")
+    save(prompt_label("일어나기", 132, "X"), "hud_prompt_stand.png")
     save(toast(), "hud_toast.png")
+    save(toast_bad(), "hud_toast_bad.png")
     save(hidden_badge(), "hud_hidden.png")
+    save(sit_badge(), "hud_sit.png")
     save(chase_banner(), "hud_chase.png")
     save(noise_ring(), "fx_ring.png")
     save(zzz(), "fx_zzz.png")
@@ -654,9 +689,9 @@ def build_all():
     sets = [("숲속 캠핑장", "한낮  —  햇빛 아래, 사람은 두 명"),
             ("호숫가 캠핑장", "해 질 녘  —  낚시꾼과 산책하는 사람"),
             ("야간 축제 캠핑장", "밤  —  불빛과 인파, 다섯 명")]
-    food_set = [["stew", "sausage", "mallow"],
-                ["sandwich", "corn", "fish"],
-                ["chicken", "cake", "soda"]]
+    food_set = [["stew", "sausage", "mallow", "apple", "cheese"],
+                ["sandwich", "corn", "fish", "bread", "egg"],
+                ["chicken", "cake", "soda", "berry", "soup"]]
     for i, (nm, tm) in enumerate(sets):
         ims = [Image.open(os.path.join(OUT, f"food_{k}.png")).convert("RGBA")
                for k in food_set[i]]

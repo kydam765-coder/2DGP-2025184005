@@ -157,6 +157,12 @@ def pico(direction="down", frame=0):
     return down(im, w, h)
 
 
+def pico_peek():
+    """수풀에 앉았을 때 잎 위로 빼꼼 내미는 머리 — pico 상단 34px 만 남긴다."""
+    im = pico("down", 0)
+    return im.crop((0, 0, im.width, 34))
+
+
 # ---------------------------------------------------------------- camper
 def camper(variant=0, direction="down", frame=0, sitting=False):
     """캠핑객: 64x82. variant 로 옷/머리 색을 바꾼다."""
@@ -512,7 +518,8 @@ def sleeper():
 
 # ---------------------------------------------------------------- foods
 FOOD_KINDS = ["stew", "sausage", "mallow", "fish", "sandwich", "corn",
-              "chicken", "cake", "soda"]
+              "chicken", "cake", "soda", "apple", "cheese", "bread",
+              "egg", "berry", "soup"]
 
 
 def food(kind):
@@ -579,6 +586,40 @@ def food(kind):
         p.poly([(14, 46), (50, 46), (50, 42), (14, 42)], "#C98C5A")
         p.ell((28, 14, 38, 24), "#C0563C")
         p.pline([(33, 14), (33, 10)], "#6E9A5E", 1.2)
+    elif kind == "apple":
+        p.ell((18, 22, 48, 52), "#C0563C")
+        p.ell((22, 24, 44, 48), "#D9744E")
+        p.ell((24, 26, 34, 40), "#E99A6A")
+        p.pline([(33, 22), (35, 14)], "#6B4A3C", 2.0)
+        p.ell((35, 12, 46, 19), "#6E9A5E")
+    elif kind == "cheese":
+        p.poly([(14, 46), (50, 46), (48, 20), (18, 26)], "#E9C24A")
+        p.poly([(16, 44), (46, 44), (45, 24), (20, 29)], "#F2DB7E")
+        for (x, y) in ((26, 36), (38, 34), (32, 42)):
+            p.ell((x - 3, y - 3, x + 3, y + 3), "#C99A3E")
+    elif kind == "bread":
+        p.rr((12, 24, 52, 50), 10, "#B4703A")
+        p.rr((16, 26, 48, 46), 8, "#D9A05A")
+        p.pline([(20, 31), (44, 31)], "#E9C98A", 1.6)
+        p.pline([(20, 42), (44, 42)], "#E9C98A", 1.6)
+    elif kind == "egg":
+        p.ell((14, 20, 50, 52), "#EFE6D2")
+        p.ell((20, 26, 44, 48), "#FFF9EA")
+        p.ell((26, 30, 40, 44), "#E9C24A")
+        p.ell((29, 33, 35, 39), "#F2DB7E")
+    elif kind == "berry":
+        for (x, y) in ((22, 36), (36, 34), (29, 44)):
+            p.ell((x - 8, y - 7, x + 8, y + 7), "#7E4E7A")
+            p.ell((x - 5, y - 5, x + 1, y + 1), "#A8709A")
+        p.pline([(30, 28), (34, 16)], "#6E9A5E", 2.0)
+        p.ell((34, 13, 46, 20), "#7FA86A")
+    elif kind == "soup":
+        p.ell((12, 28, 52, 52), "#C7C0AC")
+        p.ell((16, 30, 48, 48), "#8E3F2A")
+        p.ell((20, 32, 44, 44), "#B4553A")
+        for (x, y) in ((26, 36), (36, 34), (32, 40)):
+            p.ell((x - 2, y - 2, x + 2, y + 2), "#E9C24A")
+        p.pline([(44, 28), (52, 16)], "#C7C0AC", 2.2)
     else:  # soda
         p.poly([(22, 16), (42, 16), (38, 52), (26, 52)], "#E9E2D2")
         p.poly([(24, 28), (40, 28), (37, 50), (27, 50)], "#C0563C")
@@ -601,6 +642,7 @@ def build_all():
     for d in ("down", "up", "left", "right"):
         for f in (0, 1):
             save(pico(d, f), f"pico_{d}_{f}.png")
+    save(pico_peek(), "pico_peek.png")
 
     for v in range(4):
         for d in ("down", "up", "left", "right"):

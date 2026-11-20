@@ -6,6 +6,7 @@ main.py 가 pico2d 입력을 hold/press 로 바꿔 Game.update() 에 넘긴다.
 """
 import math
 import os
+import random
 
 from pico2d import clear_canvas, draw_rectangle, load_image, load_wav
 
@@ -41,6 +42,9 @@ SLEEP_BOOST = 2.0       # d=0 이면 RISE_SLEEP * 3.0
 
 # ---- 텐트
 DOOR_LOCK = 0.6         # 들어가고 나온 직후 출입구 재입력 방지
+
+# ---- 썩은 음식
+ROTTEN_PER_MAP = 1      # 맵마다 1개, 총 3개를 랜덤으로 썩힌다 (카운트 제외)
 
 # ---- 추격
 CHASE_SPEED = 240.0     # 달리기(320)보다 느리다 → 달리면 따돌릴 수 있다
@@ -148,10 +152,20 @@ class Player:
         self.anim = 0.0
         self.moving = False
         self.sprinting = False
+        self.sitting = False
         self.speed = WALK_SPEED
         self.moved = 0.0
 
     def update(self, dt, hold, solids, no_go):
+        if self.sitting:
+            # 수풀에 앉아 있으면 움직이지 않는다 — 발소리도 나지 않는다
+            self.moving = False
+            self.sprinting = False
+            self.speed = 0.0
+            self.moved = 0.0
+            self.anim = 0.0
+            self.frame = 0
+            return
         dx = (1 if "right" in hold else 0) - (1 if "left" in hold else 0)
         dy = (1 if "down" in hold else 0) - (1 if "up" in hold else 0)
         self.moving = bool(dx or dy)
@@ -372,7 +386,8 @@ class Food:
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, seed=None):
+        self.seed = seed            # 테스트에서 썩은 음식 배치를 고정할 수 있다
         self.images = {}
         base = os.path.dirname(os.path.abspath(__file__))
         if base not in os.sys.path:
@@ -403,10 +418,23 @@ class Game:
         self.gauge = 0.0
         self.time = 0.0
         self.toast_timer = 0.0
+        self.toast_kind = "good"
+        self.rotten_found = set()
         self.prompt_food = None
+        self._assign_rotten()
         self.load_map(0)
         self.state = "intro"
         self.timer = 2.2
+
+    def _assign_rotten(self):
+        """맵마다 1개씩, 전체 5개를 랜덤으로 썩은 음식으로 정한다."""
+        rng = random.Random(self.seed)
+        self.rotten = set()
+        for i in range(len(MAPS)):
+            base = FOOD_BASE[i]
+            n = FOOD_BASE[i + 1] - base if i + 1 < len(FOOD_BASE) else len(FOOD_ORDER) - base
+            self.rotten.update(rng.sample(range(base, base + n),
+                                          min(ROTTEN_PER_MAP, n)))
 
     def load_map(self, i):
         d = MAPS[i]
@@ -445,10 +473,11 @@ class Game:
         return FOOD_BASE[i] + len(MAPS[i]["foods"])
 
     def map_complete(self):
-        if any(not f.collected for f in self.foods):
+        # 썩은 음식은 카운트에서 제외 — 안 주워도 맵 클리어가 가능하다
+        if any(not f.collected and f.index not in self.rotten for f in self.foods):
             return False
         idx = self.tent_food_index()
-        return idx is None or idx in self.collected
+        return idx is None or idx in self.rotten or idx in self.collected
 
     def enter_tent(self):
         t = self.map["tent"]
@@ -502,6 +531,14 @@ class Game:
         self.state = "intro"
         self.timer = 2.0
 
+    def bush_at(self, x, y):
+        """발밑 (x,y)가 수풀 잎 안이면 그 수풀 Prop 을 돌려준다."""
+        for p in self.hides:
+            r = p.hide_rect()
+            if r and in_rect(x, y, r):
+                return p
+        return None
+
     # ---------------------------------------------------------- update
     def update(self, dt, hold=frozenset(), press=frozenset()):
         self.time += dt
@@ -528,6 +565,13 @@ class Game:
         if self.door_lock > 0:
             self.door_lock = max(0.0, self.door_lock - dt)
 
+        # X: 수풀 안에서만 앉기 / 일어나기 토글
+        if "sit" in press:
+            if self.player.sitting:
+                self.player.sitting = False
+            elif self.bush_at(self.player.x, self.player.y) is not None:
+                self.player.sitting = True
+
         self.player.update(dt, hold, self.solids, self.no_go)
         for c in self.campers:
             if c.mode == "chase":
@@ -546,11 +590,9 @@ class Game:
             c.update(dt)
 
         # 수풀 속에 몸을 숨겼는가 (수풀 잎에 발이 들어가면 은신)
-        self.hidden_bush = None
-        for p in self.hides:
-            if in_rect(self.player.x, self.player.y, p.hide_rect()):
-                self.hidden_bush = p
-                break
+        self.hidden_bush = self.bush_at(self.player.x, self.player.y)
+        if self.hidden_bush is None and self.player.sitting:
+            self.player.sitting = False    # 수풀을 나오면 자동으로 일어난다
         self.hidden = self.hidden_bush is not None
 
         # 발소리 (걷기 작게 / 달리기 크게)
@@ -599,16 +641,28 @@ class Game:
 
     def _collect(self, f):
         f.collected = True
+        self.prompt_food = None
+        if f.index in self.rotten:
+            # 썩은 음식: 주워지지만 수집 카운트에는 넣지 않고 경고만 띄운다
+            self.rotten_found.add(f.index)
+            self.toast_kind = "bad"
+            self.toast_timer = 1.1
+            if self.map_complete() and not self.in_tent:
+                self._finish_map()
+            return
         self.collected.add(f.index)
         self.gauge = min(100.0, self.gauge + PICKUP_NOISE)
+        self.toast_kind = "good"
         self.toast_timer = 1.1
-        self.prompt_food = None
         if self.map_complete() and not self.in_tent:
-            if self.map_index >= len(MAPS) - 1:
-                self.state = "win"
-            else:
-                self.state = "map_clear"
-                self.timer = 1.7
+            self._finish_map()
+
+    def _finish_map(self):
+        if self.map_index >= len(MAPS) - 1:
+            self.state = "win"
+        else:
+            self.state = "map_clear"
+            self.timer = 1.7
 
     # ---------------------------------------------------------- 발소리 / 감지
     def update_noise(self, dt):
@@ -634,6 +688,11 @@ class Game:
         return self.noise > 0 and camper.hears(self.player, self.noise)
 
     def update_gauge(self, dt):
+        if self.player.sitting and self.hidden:
+            # 수풀에 앉아 있으면 근거리·원거리·청각·자는 사람 전부 무시
+            # (감지 반경 안에 있어도 눈치채지 못한다)
+            self.gauge = max(0.0, self.gauge - FALL * dt)
+            return
         rise = 0.0
         for c in self.campers:
             d = c.dist_to(self.player)
@@ -683,7 +742,8 @@ class Game:
         c.chase_t += dt
         c.move_toward(self.player.x, self.player.y, dt, CHASE_SPEED, self.solids)
         d = math.hypot(c.x - self.player.x, (c.y - 26) - (self.player.y - 24))
-        if d <= CATCH_DIST:
+        invisible = self.player.sitting and self.hidden
+        if d <= CATCH_DIST and not invisible:
             self.state = "caught"
             self.chaser = None
             return
@@ -691,6 +751,8 @@ class Game:
         s = c.sees(self.player, self.covers)
         if s == "far" and self.hidden:
             s = None
+        if invisible:
+            s = None      # 앉아 있으면 추격 중에도 시야에서 사라진다
         if s:
             c.lost = 0.0
             self.gauge = CHASE_HOLD
@@ -827,6 +889,17 @@ class Game:
 
     def draw_player(self, p):
         self.img("shadow.png").draw(p.x, H - p.y + 3, 46, 19)
+        if p.sitting and self.hidden_bush:
+            # 수풀 잎 위로 머리만 빼꼼 — 몸은 잎에 완전히 가린다
+            b = self.hidden_bush
+            leaf = self.img("prop_bush.png")
+            sw, sh = leaf.w * b.scale, leaf.h * b.scale
+            ly = H - b.y + sh / 2 - b.pad * b.scale
+            leaf_top = ly + sh / 2
+            peek = self.img("pico_peek.png")
+            peek.draw(p.x, leaf_top + peek.h * 0.30, peek.w, peek.h)
+            leaf.draw(b.x, ly, sw, sh)
+            return
         im = self.img("pico_%s_%d.png" % (p.dir, p.frame))
         if self.hidden:
             im.opacify(0.9)
@@ -854,11 +927,12 @@ class Game:
         self.img("hud_bar.png").draw_to_origin(0, H - 86)
         self.img(self.scene["label"]).draw_to_origin(24, H - 75)
 
-        # 은신 중 표시
+        # 은신 / 수풀 앉기 표시
         if self.hidden and self.state == "playing":
-            badge = self.img("hud_hidden.png")
+            name = "hud_sit.png" if self.player.sitting else "hud_hidden.png"
+            badge = self.img(name)
             badge.opacify(0.80 + 0.16 * math.sin(self.time * 4.0))
-            badge.draw(self.player.x, H - self.player.y + 82, 104, 34)
+            badge.draw(self.player.x, H - self.player.y + 82, 124, 34)
             badge.opacify(1.0)
 
         # 추격 중 표시
@@ -868,14 +942,17 @@ class Game:
             b.draw(W / 2, H - 116, 372, 60)
             b.opacify(1.0)
 
-        # 음식 9칸
-        sx = W / 2 - 212
+        # 음식 15칸 — 썩은 음식은 주운 뒤 붉은 칸으로 표시하고 카운트에서 제외
+        sx = W / 2 - len(FOOD_ORDER) * 24
         for i in range(len(FOOD_ORDER)):
             x = sx + i * 48
-            done = i in self.collected
-            self.img("slot_full.png" if done else "slot_empty.png").draw_to_origin(x, H - 63)
-            if done:
+            if i in self.collected:
+                self.img("slot_full.png").draw_to_origin(x, H - 63)
                 self.img("food_%s.png" % FOOD_ORDER[i]).draw(x + 20, H - 43, 34, 34)
+            elif i in self.rotten_found:
+                self.img("slot_rotten.png").draw_to_origin(x, H - 63)
+            else:
+                self.img("slot_empty.png").draw_to_origin(x, H - 63)
 
         # 감지 게이지
         self.img("hud_gauge.png").draw_to_origin(1000, H - 40)
@@ -895,10 +972,11 @@ class Game:
 
         self.img("hud_controls.png").draw_to_origin(24, 24)
 
-        # 획득 토스트
+        # 획득 / 썩은 음식 경고 토스트
         if self.toast_timer > 0:
             t = self.toast_timer / 1.1
-            self.img("hud_toast.png").draw(W / 2, H - 128 + (1 - t) * 14, 150, 44)
+            name = "hud_toast_bad.png" if self.toast_kind == "bad" else "hud_toast.png"
+            self.img(name).draw(W / 2, H - 128 + (1 - t) * 14, 150, 44)
 
         # E 프롬프트
         if self.state == "playing" and self.prompt_food is not None:
@@ -910,6 +988,10 @@ class Game:
             im = self.img(name)
             im.draw((x0 + x1) / 2, H - (y0 + y1) / 2 - 44,
                     im.w, im.h)
+        elif self.state == "playing" and self.hidden_bush is not None:
+            name = "hud_prompt_stand.png" if self.player.sitting else "hud_prompt_sit.png"
+            im = self.img(name)
+            im.draw(self.player.x, H - self.player.y + 62, im.w, im.h)
 
         # 상태 오버레이
         if self.state == "intro":
