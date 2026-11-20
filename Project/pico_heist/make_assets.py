@@ -502,6 +502,30 @@ def hidden_badge():
     return im
 
 
+def counter_plate(label, value, color=AMBER, w=158):
+    """HUD 상단 카운터 — '남은 음식: 5개', '진짜 음식: 2/3'."""
+    im = Image.new("RGBA", (w, 30), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, w - 2, 28], 8, fill=(10, 20, 15, 214),
+                        outline=color + (200,), width=2)
+    text(d, (11, 5), label, 14, CREAM + (255,))
+    text(d, (w - 11, 5), value, 14, color + (255,), anchor="ra")
+    return im
+
+
+def real_mark():
+    """진짜 음식 칸에 붙는 작은 별."""
+    im = Image.new("RGBA", (20, 20), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    pts = []
+    for k in range(10):
+        a = math.pi / 2 + k * math.pi / 5
+        r = 9 if k % 2 == 0 else 4
+        pts.append((10 + math.cos(a) * r, 9 - math.sin(a) * r))
+    d.polygon(pts, fill=AMBER + (255,), outline=(90, 54, 12, 255))
+    return im
+
+
 def chase_banner():
     im = Image.new("RGBA", (372, 60), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
@@ -570,7 +594,7 @@ def overlay_end(kind="caught"):
     col = (220, 83, 48) if kind == "caught" else (233, 166, 63)
     title = "들켰다!" if kind == "caught" else "클리어!"
     sub = ("감지 게이지 100%  —  캠핑장 사람들에게 들켰다"
-           if kind == "caught" else "음식 15개, 세 캠핑장을 모두 털었다")
+           if kind == "caught" else "진짜 음식 3개, 세 캠핑장을 모두 털었다")
     hint = "R  다시 시작"
     d.rounded_rectangle([300, 232, 980, 500], 22, fill=(13, 24, 18, 236),
                         outline=col + (230,), width=3)
@@ -627,7 +651,7 @@ def map_clear():
     d.rounded_rectangle([370, 288, 910, 432], 18, fill=(13, 24, 18, 232),
                         outline=AMBER + (220,), width=3)
     text(d, (640, 310), "MAP CLEAR", 15, AMBER + (255,), anchor="ma", letterspace=4.0)
-    text(d, (640, 338), "음식 3개 확보", 34, CREAM + (255,), anchor="ma")
+    text(d, (640, 338), "진짜 음식 1개 확보!", 34, CREAM + (255,), anchor="ma")
     text(d, (640, 390), "다음 캠핑장으로 이동합니다", 16, (196, 210, 196, 255),
          anchor="ma", bold=False)
     return im
@@ -669,6 +693,12 @@ def build_all():
     save(toast_bad(), "hud_toast_bad.png")
     save(hidden_badge(), "hud_hidden.png")
     save(sit_badge(), "hud_sit.png")
+    for n in range(16):
+        save(counter_plate("남은 음식:", f"{n}개"), f"hud_remain_{n}.png")
+    for n in range(4):
+        save(counter_plate("진짜 음식:", f"{n}/3", (122, 190, 118)),
+             f"hud_real_{n}.png")
+    save(real_mark(), "hud_real_mark.png")
     save(chase_banner(), "hud_chase.png")
     save(noise_ring(), "fx_ring.png")
     save(zzz(), "fx_zzz.png")

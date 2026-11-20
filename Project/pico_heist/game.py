@@ -70,6 +70,14 @@ def _food_layout():
 
 
 FOOD_ORDER, FOOD_BASE = _food_layout()
+FOOD_BASES = FOOD_BASE + [len(FOOD_ORDER)]
+
+# 맵의 마지막 음식 = 진짜 음식 (숲속 마시멜로 / 호숫가 샌드위치 / 축제 수프).
+# 절대 썩지 않고, 이걸 먹어야만 맵이 클리어된다 → 3개 맵에서 진짜 음식 3개.
+REAL_INDICES = tuple(FOOD_BASES[i + 1] - 1 for i in range(len(MAPS)))
+REAL_SET = frozenset(REAL_INDICES)
+
+HUD_SLOTS = len(FOOD_ORDER)     # 상단 음식 칸 수 (15칸 유지)
 
 PROP_SPECS = {
     # name: (solid w,h / cover w,h or None / pad / shadow w)
@@ -427,14 +435,13 @@ class Game:
         self.timer = 2.2
 
     def _assign_rotten(self):
-        """맵마다 1개씩, 전체 5개를 랜덤으로 썩은 음식으로 정한다."""
+        """맵마다 1개씩 랜덤으로 썩힌다 — 단, 마지막(진짜) 음식은 제외."""
         rng = random.Random(self.seed)
         self.rotten = set()
         for i in range(len(MAPS)):
-            base = FOOD_BASE[i]
-            n = FOOD_BASE[i + 1] - base if i + 1 < len(FOOD_BASE) else len(FOOD_ORDER) - base
-            self.rotten.update(rng.sample(range(base, base + n),
-                                          min(ROTTEN_PER_MAP, n)))
+            base, hi = FOOD_BASES[i], FOOD_BASES[i + 1]
+            pool = [j for j in range(base, hi) if j not in REAL_SET]
+            self.rotten.update(rng.sample(pool, min(ROTTEN_PER_MAP, len(pool))))
 
     def load_map(self, i):
         d = MAPS[i]
@@ -473,11 +480,25 @@ class Game:
         return FOOD_BASE[i] + len(MAPS[i]["foods"])
 
     def map_complete(self):
-        # 썩은 음식은 카운트에서 제외 — 안 주워도 맵 클리어가 가능하다
+        # 마지막 음식(진짜 음식)은 썩지도 않고 반드시 먹어야 한다
+        if self.map_index < len(REAL_INDICES):
+            if REAL_INDICES[self.map_index] not in self.collected:
+                return False
+        # 그 밖의 썩은 음식은 카운트에서 제외 — 안 주워도 맵 클리어가 가능하다
         if any(not f.collected and f.index not in self.rotten for f in self.foods):
             return False
         idx = self.tent_food_index()
-        return idx is None or idx in self.rotten or idx in self.collected
+        return idx is None or idx in self.collected
+
+    def real_eaten(self):
+        """먹은 진짜 음식 개수 (0~3)."""
+        return len(self.collected & REAL_SET)
+
+    def remaining_food(self):
+        """현재 맵에 남은 음식 개수 — 썩은 음식도 주우기 전까지는 남은 것으로 센다."""
+        lo, hi = FOOD_BASES[self.map_index], FOOD_BASES[self.map_index + 1]
+        taken = self.collected | self.rotten_found
+        return sum(1 for j in range(lo, hi) if j not in taken)
 
     def enter_tent(self):
         t = self.map["tent"]
@@ -658,6 +679,7 @@ class Game:
             self._finish_map()
 
     def _finish_map(self):
+        # 마지막 맵의 진짜 음식까지 먹으면 진짜 음식 3개가 모두 모인 셈
         if self.map_index >= len(MAPS) - 1:
             self.state = "win"
         else:
@@ -942,9 +964,9 @@ class Game:
             b.draw(W / 2, H - 116, 372, 60)
             b.opacify(1.0)
 
-        # 음식 15칸 — 썩은 음식은 주운 뒤 붉은 칸으로 표시하고 카운트에서 제외
-        sx = W / 2 - len(FOOD_ORDER) * 24
-        for i in range(len(FOOD_ORDER)):
+        # 음식 15칸 유지 — 썩은 음식은 주운 뒤 붉은 칸으로 표시하고 카운트에서 제외
+        sx = W / 2 - HUD_SLOTS * 24
+        for i in range(HUD_SLOTS):
             x = sx + i * 48
             if i in self.collected:
                 self.img("slot_full.png").draw_to_origin(x, H - 63)
@@ -953,6 +975,15 @@ class Game:
                 self.img("slot_rotten.png").draw_to_origin(x, H - 63)
             else:
                 self.img("slot_empty.png").draw_to_origin(x, H - 63)
+            if i in REAL_SET:
+                # 맵의 마지막 칸 = 진짜 음식 (별 표시)
+                self.img("hud_real_mark.png").draw_to_origin(x + 28, H - 55)
+
+        # 15칸 왼쪽 위에 남은 음식 / 진짜 음식 카운터
+        remain = max(0, min(len(FOOD_ORDER), self.remaining_food()))
+        self.img("hud_remain_%d.png" % remain).draw_to_origin(222, 600)
+        real = max(0, min(len(REAL_INDICES), self.real_eaten()))
+        self.img("hud_real_%d.png" % real).draw_to_origin(400, 600)
 
         # 감지 게이지
         self.img("hud_gauge.png").draw_to_origin(1000, H - 40)
