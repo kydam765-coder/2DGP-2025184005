@@ -44,8 +44,10 @@ SLEEP_BOOST = 2.0       # d=0 이면 RISE_SLEEP * 3.0
 DOOR_LOCK = 0.6         # 들어가고 나온 직후 출입구 재입력 방지
 
 # ---- 2번 맵 낚싯배 / 낚시
-BOAT_SPEED = 74.0       # 배가 호수 안으로 나가는 속도
-BOAT_ARRIVE_Y = 150.0   # 이 y 위까지 가면 낚시 전용 맵으로 전환
+BOAT_SPEED = 190.0      # WASD / 방향키로 배를 조종하는 속도
+BOAT_ARRIVE_Y = 150.0   # 화면 위쪽 끝 — 이 y에 닿으면 낚시 전용 맵으로 전환
+BOAT_MARGIN_X = 104.0   # 배 그림 반폭(98) + 여유 — 좌우 화면 끝에서 멈춤
+BOAT_BOTTOM_Y = H - 46.0  # 화면 아래쪽 끝
 BOAT_HALF_W = 46.0      # 배 안에서 움직일 수 있는 가로 반폭
 BOAT_HALF_H = 17.0      # 배 안에서 움직일 수 있는 세로 반폭
 FISH_TIME = 1.5         # E 홀드로 게이지가 차는 시간
@@ -647,11 +649,37 @@ class Game:
 
     def update_boat(self, dt, hold):
         if self.boat_mode == "sailing":
-            self.boat["y"] -= BOAT_SPEED * dt
+            # WASD / 방향키로 배 자체를 조종한다 — 자동 항해는 없다.
+            dx = (1 if "right" in hold else 0) - (1 if "left" in hold else 0)
+            dy = (1 if "down" in hold else 0) - (1 if "up" in hold else 0)
+            if dx or dy:
+                ln = math.hypot(dx, dy)
+                dx, dy = dx / ln, dy / ln
+                self.boat["x"] += dx * BOAT_SPEED * dt
+                self.boat["y"] += dy * BOAT_SPEED * dt
+                self.boat["x"] = max(BOAT_MARGIN_X,
+                                    min(W - BOAT_MARGIN_X, self.boat["x"]))
+                self.boat["y"] = max(BOAT_ARRIVE_Y,
+                                    min(BOAT_BOTTOM_Y, self.boat["y"]))
+                if abs(dx) >= abs(dy):
+                    self.player.dir = "right" if dx > 0 else "left"
+                else:
+                    self.player.dir = "down" if dy > 0 else "up"
+                self.player.moving = True
+                self.player.anim += dt
+                self.player.frame = int(self.player.anim / 0.14) % 2
+            else:
+                self.player.moving = False
+                self.player.anim = 0.0
+                self.player.frame = 0
+            # 선수는 배 위에 붙어 따라간다.
+            self.player.x, self.player.y = self.boat["x"], self.boat["y"]
             self.clamp_to_boat()
-            if self.boat["y"] <= BOAT_ARRIVE_Y:
+            if self.boat["y"] <= BOAT_ARRIVE_Y + 0.01:
                 self.enter_lake()
         elif self.boat_mode == "fishing":
+            # 낚시 맵에서도 배 안에서만 걸어 다닌다.
+            self.player.update(dt, hold, [], [])
             self.clamp_to_boat()
             self.update_fishing(dt, hold)
 
@@ -742,6 +770,13 @@ class Game:
                 self.board_boat()
                 return
 
+        # 배에 탄 동안에는 WASD / 방향키로 배를 조종하고, 화면 끝에서 낚시 맵으로 간다
+        if self.boat_mode is not None:
+            self.prompt_boat = False
+            self.prompt_food = None
+            self.update_boat(dt, hold)
+            return
+
         # X: 수풀 안에서만 앉기 / 일어나기 토글
         if "sit" in press:
             if self.player.sitting:
@@ -750,13 +785,6 @@ class Game:
                 self.player.sitting = True
 
         self.player.update(dt, hold, self.solids, self.no_go)
-
-        # 배에 탄 동안에는 배 안에서만 움직이고, 호수 끝에 닿으면 낚시 맵으로 간다
-        if self.boat_mode is not None:
-            self.prompt_boat = False
-            self.prompt_food = None
-            self.update_boat(dt, hold)
-            return
 
         for c in self.campers:
             if c.mode == "chase":
