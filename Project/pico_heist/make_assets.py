@@ -420,8 +420,8 @@ def slot(empty=True):
 
 
 def controls():
-    items = [("WASD", "이동"), ("SHIFT", "달리기"), ("E", "줍기"),
-             ("X", "수풀 앉기"), ("R", "다시 시작")]
+    items = [("WASD", "이동"), ("SHIFT", "달리기"), ("E", "줍기/낚시"),
+             ("Q", "낚싯배"), ("X", "수풀 앉기"), ("R", "다시 시작")]
     fk, fl = font(11, True), font(12, True)
     spans, x = [], 16
     for key, label in items:
@@ -561,7 +561,7 @@ def alert_mark():
 
 
 # ---------------------------------------------------------------- overlays
-def intro(i, name, time_label, foods, has_tent=True):
+def intro(i, name, time_label, foods, tip):
     im = Image.new("RGBA", (W, H), (6, 12, 9, 168))
     d = ImageDraw.Draw(im)
     d.rectangle([0, 0, W, 8], fill=AMBER + (230,))
@@ -572,8 +572,6 @@ def intro(i, name, time_label, foods, has_tent=True):
     text(d, (126, 272), name, 56, CREAM + (255,))
     text(d, (126, 350), time_label, 24, AMBER + (255,))
     d.line([126, 400, 620, 400], fill=(255, 255, 255, 46), width=2)
-    tip = ("야외 정상 2개 + 텐트 음식 1개를 모아 다음 캠핑장으로" if has_tent
-           else "야외 정상 2개(마지막 음식 포함)를 모아 다음 캠핑장으로")
     text(d, (126, 416), tip, 19, (206, 218, 204, 255))
     text(d, (126, 448), "수풀에서 X로 앉으면 완전 은신  ·  WASD 이동, E 줍기", 15,
          (146, 164, 152, 255), bold=False)
@@ -659,6 +657,88 @@ def map_clear():
     return im
 
 
+# ---------------------------------------------------------------- 낚싯배 / 낚시
+def bg_lake_open():
+    """호수 한가운데 — 낚시배에 탄 뒤 보이는 넓은 수면."""
+    ss = 2
+    im = Image.new("RGBA", (W * ss, H * ss), (52, 82, 100, 255))
+    d = ImageDraw.Draw(im)
+    rnd = random.Random(77)
+    # 하늘 / 먼 언덕
+    d.rectangle([0, 0, W * ss, 206 * ss], fill=(214, 158, 110, 255))
+    d.rectangle([0, 0, W * ss, 84 * ss], fill=(176, 126, 104, 255))
+    for x in range(0, W, 96):
+        h = rnd.uniform(120, 190) * ss
+        d.ellipse([(x - 92) * ss, 206 * ss - h, (x + 92) * ss, 206 * ss + 20 * ss],
+                  fill=(74, 84, 70, 255))
+    d.rectangle([0, 202 * ss, W * ss, 226 * ss], fill=(96, 106, 74, 255))
+    # 수면 띠
+    for i in range(58):
+        t = i / 58
+        y = 226 + t * (H - 226)
+        band = Image.new("RGBA", (W * ss, int((H - 226) / 58 * ss) + 2), (0, 0, 0, 0))
+        bd = ImageDraw.Draw(band)
+        col = (int(112 - 62 * t), int(146 - 84 * t), int(156 - 96 * t), 40)
+        bd.rectangle([0, 0, W * ss, band.size[1]], fill=col)
+        im.alpha_composite(band, (0, int(y * ss)))
+    # 노을 반사
+    refl = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    dr = ImageDraw.Draw(refl)
+    for i in range(20):
+        y = (232 + i * 22) * ss
+        wgt = 1 - i / 20
+        dr.ellipse([(640 - 170 * wgt) * ss, y, (640 + 170 * wgt) * ss, y + 12 * ss],
+                   fill=(252, 196, 126, int(56 * wgt)))
+    refl = refl.filter(ImageFilter.GaussianBlur(12 * ss))
+    im.alpha_composite(refl)
+    # 잔물결
+    for _ in range(220):
+        x, y = rnd.uniform(0, W) * ss, rnd.uniform(230, H) * ss
+        ln = rnd.uniform(16, 78) * ss
+        c = (236, 204, 160, rnd.randint(24, 78)) if rnd.random() < 0.5 else \
+            (168, 206, 212, rnd.randint(24, 70))
+        d.line([x, y, x + ln, y], fill=c, width=max(1, int(1.6 * ss)))
+    return im.resize((W, H), Image.LANCZOS)
+
+
+def boat():
+    """나무 낚싯배 — 가로로 긴 작은 보트."""
+    im = Image.new("RGBA", (196, 84), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.polygon([(8, 34), (188, 34), (166, 72), (30, 72)],
+              fill=(132, 90, 56, 255), outline=(72, 46, 28, 255))
+    d.polygon([(8, 34), (188, 34), (176, 46), (20, 46)],
+              fill=(166, 118, 72, 255), outline=(82, 52, 30, 255))
+    d.rectangle([34, 48, 162, 54], fill=(96, 62, 38, 255))
+    d.line([(64, 22), (64, 34)], fill=(70, 48, 30, 255), width=5)
+    d.line([(132, 22), (132, 34)], fill=(70, 48, 30, 255), width=5)
+    d.ellipse([146, 8, 170, 32], fill=(206, 176, 120, 255))
+    d.polygon([(158, 12), (186, 26), (158, 30)], fill=(232, 196, 138, 255))
+    return im
+
+
+def fish_jump():
+    d = Image.new("RGBA", (76, 64), (0, 0, 0, 0))
+    dr = ImageDraw.Draw(d)
+    dr.ellipse([12, 14, 62, 54], fill=(122, 182, 194, 255),
+               outline=(44, 88, 102, 255), width=3)
+    dr.polygon([(58, 34), (76, 12), (72, 52)], fill=(96, 152, 166, 255))
+    dr.ellipse([20, 25, 28, 33], fill=(20, 38, 44, 255))
+    dr.line([(32, 20), (38, 12), (46, 20)], fill=(60, 112, 126, 255), width=3)
+    return d
+
+
+def fish_gauge_bg():
+    """화면 위쪽 낚시 게이지 — (470, 122)에 그린다."""
+    im = Image.new("RGBA", (340, 72), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 338, 70], 10, fill=(8, 18, 16, 220),
+                        outline=(233, 166, 63, 210), width=2)
+    text(d, (14, 5), "낚시 중  ·  E 홀드", 17, CREAM + (255,))
+    d.rounded_rectangle([14, 34, 326, 60], 6, fill=(4, 10, 8, 240))
+    return im
+
+
 # ---------------------------------------------------------------- build
 def build_all():
     os.makedirs(OUT, exist_ok=True)
@@ -670,6 +750,7 @@ def build_all():
     bg_lake().convert("RGB").save(os.path.join(OUT, "bg_lake.png"))
     bg_festival().convert("RGB").save(os.path.join(OUT, "bg_festival.png"))
     bg_tent().convert("RGB").save(os.path.join(OUT, "bg_tent.png"))
+    bg_lake_open().convert("RGB").save(os.path.join(OUT, "bg_lake_open.png"))
 
     for name, col in (("day", (255, 246, 214)), ("sunset", (255, 190, 120)),
                       ("night", (255, 214, 140))):
@@ -709,25 +790,40 @@ def build_all():
     save(prompt_label("밖으로 나가기", 176), "hud_prompt_out.png")
     save(alert_mark(), "mark_alert.png")
 
+    # 낚싯배 / 낚시
+    save(boat(), "boat.png")
+    save(fish_jump(), "fx_fish_jump.png")
+    save(fish_gauge_bg(), "hud_fish_bg.png")
+    save(prompt_label("낚싯배 타기", 176, "Q"), "hud_prompt_boat.png")
+    save(prompt_label("내리기", 132, "Q"), "hud_prompt_leave.png")
+    save(prompt_label("낚시하기", 152, "E"), "hud_prompt_fish.png")
+    save(toast("낚싯배 탑승!"), "hud_toast_boat.png")
+    save(toast("물고기 도망!"), "hud_toast_miss.png")
+
     names = [("숲속 캠핑장", "한낮  ·  MAP 01", AMBER),
              ("호숫가 캠핑장", "해 질 녘  ·  MAP 02", (233, 141, 79)),
              ("야간 축제 캠핑장", "밤  ·  MAP 03", (238, 200, 120)),
              ("텐트 안", "숲속  ·  자는 사람이 있다", (206, 178, 120)),
-             ("텐트 안", "호숫가  ·  자는 사람이 있다", (206, 178, 120))]
+             ("텐트 안", "호숫가  ·  자는 사람이 있다", (206, 178, 120)),
+             ("호숫가 낚시배", "호수  ·  E 홀드로 낚시", (150, 200, 206))]
     for i, (nm, sub, accent) in enumerate(names):
-        fn = f"label_map{i}.png" if i < 3 else f"label_tent{i - 3}.png"
+        fn = (f"label_map{i}.png" if i < 3 else
+              "label_lake.png" if i >= 5 else f"label_tent{i - 3}.png")
         save(map_label(nm, sub, accent), fn)
 
     sets = [("숲속 캠핑장", "한낮  —  햇빛 아래, 사람은 두 명"),
             ("호숫가 캠핑장", "해 질 녘  —  낚시꾼과 산책하는 사람"),
             ("야간 축제 캠핑장", "밤  —  불빛과 인파, 다섯 명")]
     food_set = [["stew", "sausage", "mallow", "apple", "cheese"],
-                ["sandwich", "corn", "fish", "bread", "egg"],
+                ["corn", "sandwich", "bread", "egg", "fish"],
                 ["chicken", "cake", "soda", "berry", "soup"]]
+    tips = ["야외 정상 2개 + 텐트 음식 1개를 모아 다음 캠핑장으로",
+            "야외 정상 2개 + Q로 낚싯배를 타고 생선을 낚아야 한다",
+            "야외 정상 2개(마지막 음식 포함)를 모아 다음 캠핑장으로"]
     for i, (nm, tm) in enumerate(sets):
         ims = [Image.open(os.path.join(OUT, f"food_{k}.png")).convert("RGBA")
                for k in food_set[i]]
-        save(intro(i, nm, tm, ims, has_tent=(i < 2)), f"intro_{i}.png")
+        save(intro(i, nm, tm, ims, tips[i]), f"intro_{i}.png")
 
     save(overlay_end("caught"), "over_caught.png")
     save(overlay_end("clear"), "over_clear.png")

@@ -43,6 +43,17 @@ SLEEP_BOOST = 2.0       # d=0 이면 RISE_SLEEP * 3.0
 # ---- 텐트
 DOOR_LOCK = 0.6         # 들어가고 나온 직후 출입구 재입력 방지
 
+# ---- 2번 맵 낚싯배 / 낚시
+BOAT_SPEED = 74.0       # 배가 호수 안으로 나가는 속도
+BOAT_ARRIVE_Y = 150.0   # 이 y 위까지 가면 낚시 전용 맵으로 전환
+BOAT_HALF_W = 46.0      # 배 안에서 움직일 수 있는 가로 반폭
+BOAT_HALF_H = 17.0      # 배 안에서 움직일 수 있는 세로 반폭
+FISH_TIME = 1.5         # E 홀드로 게이지가 차는 시간
+FISH_ESCAPE = 0.35      # 물고기를 놓칠 확률
+FISH_COOLDOWN = 0.55    # 한 번 낚은 뒤 다시 시도할 수 있는 시간
+FISH_ANIM = 1.2         # 물고기가 떠오르는 연출 시간
+FISH_NOISE = 26.0       # 낚시 성공 시 발소리 대신 퍼지는 소음
+
 # ---- 썩은 음식
 GOOD_OUTDOOR = 2        # 야외에서 카운트되는 음식은 맵마다 최대 2개
 #       1·2번 맵: 야외 4개 중 2개 썩음 + 텐트 음식 1개(항상 정상·필수) = 정상 3개
@@ -78,6 +89,9 @@ FOOD_BASES = FOOD_BASE + [len(FOOD_ORDER)]
 # 절대 썩지 않고, 이걸 먹어야만 맵이 클리어된다 → 3개 맵에서 진짜 음식 3개.
 REAL_INDICES = tuple(FOOD_BASES[i + 1] - 1 for i in range(len(MAPS)))
 REAL_SET = frozenset(REAL_INDICES)
+
+LAKE_MAP = 1                    # 호숫가 — 텐트 대신 낚싯배가 있는 맵
+FISH_INDEX = REAL_INDICES[LAKE_MAP]   # 생선 = 호수에서 낚시로만 얻는 진짜 음식
 
 HUD_SLOTS = len(FOOD_ORDER)     # 상단 음식 칸 수 (15칸 유지)
 
@@ -431,6 +445,7 @@ class Game:
         self.toast_kind = "good"
         self.rotten_found = set()
         self.prompt_food = None
+        self.fish_rng = random.Random((self.seed or 0) + 991)
         self._assign_rotten()
         self.load_map(0)
         self.state = "intro"
@@ -449,9 +464,10 @@ class Game:
         for i, m in enumerate(MAPS):
             base = FOOD_BASES[i]
             outdoor = range(base, base + len(m["foods"]))
-            pool = [j for j in outdoor if j not in REAL_SET]
-            # 마지막(진짜) 음식이 야외에 있으면 그 1개도 정상 음식에 포함된다.
-            real_outdoor = REAL_INDICES[i] in outdoor
+            # 생선은 호수에서 낚시로 얻으므로 야외 음식 계산에서 제외한다.
+            candidates = [j for j in outdoor if j != FISH_INDEX]
+            real_outdoor = REAL_INDICES[i] in candidates
+            pool = [j for j in candidates if j != REAL_INDICES[i]]
             target = max(0, GOOD_OUTDOOR - (1 if real_outdoor else 0))
             n_rotten = max(0, len(pool) - target)
             self.rotten.update(rng.sample(pool, min(n_rotten, len(pool))))
@@ -483,6 +499,15 @@ class Game:
         self.step_acc = 0.0
         self.chase_count = 0
         self.escaped = 0
+        # 낚싯배 / 낚시 상태
+        self.boat_mode = None          # None / "sailing" / "fishing"
+        self.boat = None
+        self.lake = None
+        self.prompt_boat = False
+        self.fishing = 0.0
+        self.fish_cd = 0.0
+        self.fish_anim = 0.0
+        self.fish_miss = False
 
     # ---------------------------------------------------------- 텐트 출입
     def tent_food_index(self, i=None):
@@ -493,15 +518,14 @@ class Game:
         return FOOD_BASE[i] + len(MAPS[i]["foods"])
 
     def map_complete(self):
+        """현재 맵의 정상 음식을 모두 모았는가 — 낚시 맵에 있어도 맵 기준으로 판정."""
+        i = self.map_index
         # 마지막 음식(진짜 음식)은 썩지도 않고 반드시 먹어야 한다
-        if self.map_index < len(REAL_INDICES):
-            if REAL_INDICES[self.map_index] not in self.collected:
-                return False
-        # 그 밖의 썩은 음식은 카운트에서 제외 — 안 주워도 맵 클리어가 가능하다
-        if any(not f.collected and f.index not in self.rotten for f in self.foods):
+        if REAL_INDICES[i] not in self.collected:
             return False
-        idx = self.tent_food_index()
-        return idx is None or idx in self.collected
+        lo, hi = FOOD_BASES[i], FOOD_BASES[i + 1]
+        # 썩은 음식은 카운트에서 제외 — 안 주워도 맵 클리어가 가능하다
+        return all(j in self.collected for j in range(lo, hi) if j not in self.rotten)
 
     def real_eaten(self):
         """먹은 진짜 음식 개수 (0~3)."""
@@ -559,6 +583,114 @@ class Game:
                 self.state = "map_clear"
                 self.timer = 1.7
 
+    # ---------------------------------------------------------- 낚싯배 / 낚시
+    def visible_foods(self):
+        """호숫가 육지에서는 생선을 보여주지 않는다 — 낚시로만 얻는다."""
+        if self.map_index == LAKE_MAP and self.boat_mode is None:
+            return [f for f in self.foods if f.index != FISH_INDEX]
+        return self.foods
+
+    def board_boat(self):
+        if self.map_index != LAKE_MAP or self.boat_mode is not None:
+            return False
+        bx, by = self.map["boat"]
+        self.boat = {"x": float(bx), "y": float(by)}
+        self.boat_mode = "sailing"
+        self.player.x, self.player.y = bx, by
+        self.player.sitting = False
+        self.hidden = False
+        self.chaser = None
+        self.gauge = 0.0
+        self.toast_kind = "boat"
+        self.toast_timer = 1.1
+        return True
+
+    def enter_lake(self):
+        """배가 호수 끝에 닿으면 낚시 전용 맵으로 전환된다."""
+        lake = self.map["lake"]
+        self.boat_mode = "fishing"
+        self.lake = lake
+        self.scene = lake
+        bx, by = lake["boat"]
+        self.boat = {"x": float(bx), "y": float(by)}
+        self.player.x, self.player.y = bx, by
+        self.player.sitting = False
+        self.props, self.covers, self.hides = [], [], []
+        self.solids, self.no_go = [], []
+        self.campers = []
+        self.foods = []
+        self.door = None
+        self.prompt_food = None
+        self.prompt_door = False
+        self.prompt_boat = False
+        self.hidden = False
+        self.hidden_bush = None
+        self.chaser = None
+        self.gauge = 0.0
+        self.noise = 0.0
+
+    def leave_boat(self):
+        """Q — 낚시 맵/항해 중이면 부두로 돌아온다."""
+        self.load_map(self.map_index)
+        bx, by = self.map["boat"]
+        self.player.x, self.player.y = float(bx), float(by) - 72
+        self.player.dir = "down"
+        self.state = "playing"
+        for f in self.foods:
+            if f.index in self.collected:
+                f.collected = True
+
+    def clamp_to_boat(self):
+        bx, by = self.boat["x"], self.boat["y"]
+        self.player.x = max(bx - BOAT_HALF_W, min(bx + BOAT_HALF_W, self.player.x))
+        self.player.y = max(by - BOAT_HALF_H, min(by + BOAT_HALF_H, self.player.y))
+
+    def update_boat(self, dt, hold):
+        if self.boat_mode == "sailing":
+            self.boat["y"] -= BOAT_SPEED * dt
+            self.clamp_to_boat()
+            if self.boat["y"] <= BOAT_ARRIVE_Y:
+                self.enter_lake()
+        elif self.boat_mode == "fishing":
+            self.clamp_to_boat()
+            self.update_fishing(dt, hold)
+
+    def update_fishing(self, dt, hold):
+        self.fish_anim = max(0.0, self.fish_anim - dt)
+        self.fish_cd = max(0.0, self.fish_cd - dt)
+        if FISH_INDEX in self.collected:
+            self.fishing = 0.0
+            return
+        if "collect" in hold and self.fish_cd <= 0:
+            self.fishing += dt / FISH_TIME
+            if self.fishing >= 1.0:
+                self.fishing = 0.0
+                self.fish_cd = FISH_COOLDOWN
+                self.resolve_fishing()
+        else:
+            self.fishing = max(0.0, self.fishing - dt / FISH_TIME * 1.6)
+
+    def resolve_fishing(self):
+        if self.fish_rng.random() < FISH_ESCAPE:
+            self.fish_miss = True
+            self.toast_kind = "fish_miss"
+            self.toast_timer = 1.1
+            return
+        self.fish_miss = False
+        self.fish_anim = FISH_ANIM
+        self.collected.add(FISH_INDEX)
+        self.gauge = min(100.0, self.gauge + FISH_NOISE)
+        self.toast_kind = "good"
+        self.toast_timer = 1.1
+        w = self.sfx.get("sfx_step_run")
+        if w is not None:
+            try:
+                w.play()
+            except Exception:
+                pass
+        if self.map_complete():
+            self._finish_map()
+
     def goto_next_map(self):
         self.map_index += 1
         self.load_map(self.map_index)
@@ -599,6 +731,17 @@ class Game:
         if self.door_lock > 0:
             self.door_lock = max(0.0, self.door_lock - dt)
 
+        # Q: 낚싯배 타기 / 내리기
+        if "boat" in press:
+            if self.boat_mode is not None:
+                self.leave_boat()
+                return
+            bp = self.map.get("boat")
+            if (self.map_index == LAKE_MAP and bp is not None
+                    and math.hypot(bp[0] - self.player.x, bp[1] - self.player.y) < 82):
+                self.board_boat()
+                return
+
         # X: 수풀 안에서만 앉기 / 일어나기 토글
         if "sit" in press:
             if self.player.sitting:
@@ -607,6 +750,14 @@ class Game:
                 self.player.sitting = True
 
         self.player.update(dt, hold, self.solids, self.no_go)
+
+        # 배에 탄 동안에는 배 안에서만 움직이고, 호수 끝에 닿으면 낚시 맵으로 간다
+        if self.boat_mode is not None:
+            self.prompt_boat = False
+            self.prompt_food = None
+            self.update_boat(dt, hold)
+            return
+
         for c in self.campers:
             if c.mode == "chase":
                 continue
@@ -654,6 +805,12 @@ class Game:
         # 출입구 앞인가
         self.prompt_door = (self.door is not None and self.door_lock <= 0
                             and in_rect(self.player.x, self.player.y, self.door))
+
+        # 부두 끝 낚싯배 앞인가
+        bp = self.map.get("boat")
+        self.prompt_boat = (bp is not None and self.boat_mode is None
+                            and math.hypot(bp[0] - self.player.x,
+                                           bp[1] - self.player.y) < 82)
 
         # 텐트 안에서 쫓기면 문으로 도망칠 수 있다
         if self.in_tent and self.chaser is not None and self.prompt_door:
@@ -804,7 +961,7 @@ class Game:
 
     def nearest_food(self, r):
         best, bd = None, r
-        for f in self.foods:
+        for f in self.visible_foods():
             if f.collected:
                 continue
             d = math.hypot(f.x - self.player.x, f.y - self.player.y)
@@ -852,7 +1009,7 @@ class Game:
             ring.opacify(1.0)
 
         # 음식 발광
-        for f in self.foods:
+        for f in self.visible_foods():
             if f.collected:
                 continue
             g = self.img("glow_food.png")
@@ -864,7 +1021,7 @@ class Game:
         items = []
         for p in self.props:
             items.append((p.y, "prop", p))
-        for f in self.foods:
+        for f in self.visible_foods():
             if not f.collected:
                 items.append((f.y + 0.1, "food", f))
         for c in self.campers:
@@ -882,7 +1039,39 @@ class Game:
             else:
                 self.draw_player(obj)
 
+        if self.boat is not None:
+            self.draw_boat()
         self.draw_hud()
+
+    def draw_boat(self):
+        bx, by = self.boat["x"], self.boat["y"]
+        self.img("shadow.png").draw(bx, H - by - 4, 168, 30)
+        im = self.img("boat.png")
+        im.draw(bx, H - by + 12, 196, 84)
+        if self.boat_mode == "fishing":
+            # 낚싯줄
+            from pico2d import draw_line
+            draw_line(bx + 62, H - by + 2, bx + 104, H - by - 118,
+                      236, 214, 170, 2)
+            if self.fish_anim > 0:
+                t = 1.0 - self.fish_anim / FISH_ANIM
+                fish = self.img("fx_fish_jump.png")
+                lift = math.sin(min(1.0, t * 1.5) * math.pi) * 96
+                fish.opacify(min(1.0, self.fish_anim * 2.2))
+                fish.draw(bx + 104, H - by + lift, 76, 64)
+                fish.opacify(1.0)
+            ripple = self.img("fx_ring.png")
+            ripple.opacify(0.20 + 0.12 * math.sin(self.time * 5.0))
+            ripple.draw(bx + 104, H - by + 20, 86, 26)
+            ripple.opacify(1.0)
+
+    def draw_fishing_hud(self):
+        if self.boat_mode != "fishing" or FISH_INDEX in self.collected:
+            return
+        self.img("hud_fish_bg.png").draw_to_origin(470, 518)
+        frac = max(0.0, min(1.0, self.fishing))
+        from pico2d import draw_rectangle
+        draw_rectangle(486, 530, 486 + 310 * frac, 556, 240, 196, 104, filled=True)
 
     def draw_prop(self, p):
         if p.shadow:
@@ -999,6 +1188,8 @@ class Game:
         self.img("hud_real_%d.png" % real).draw_to_origin(400, 600)
 
         # 감지 게이지
+        self.draw_fishing_hud()
+
         self.img("hud_gauge.png").draw_to_origin(1000, H - 40)
         self.img("hud_gauge_bg.png").draw_to_origin(1000, H - 74)
         frac = max(0.0, min(1.0, self.gauge / 100.0))
@@ -1019,7 +1210,9 @@ class Game:
         # 획득 / 썩은 음식 경고 토스트
         if self.toast_timer > 0:
             t = self.toast_timer / 1.1
-            name = "hud_toast_bad.png" if self.toast_kind == "bad" else "hud_toast.png"
+            names = {"bad": "hud_toast_bad.png", "boat": "hud_toast_boat.png",
+                     "fish_miss": "hud_toast_miss.png"}
+            name = names.get(self.toast_kind, "hud_toast.png")
             self.img(name).draw(W / 2, H - 128 + (1 - t) * 14, 150, 44)
 
         # E 프롬프트
@@ -1036,6 +1229,18 @@ class Game:
             name = "hud_prompt_stand.png" if self.player.sitting else "hud_prompt_sit.png"
             im = self.img(name)
             im.draw(self.player.x, H - self.player.y + 62, im.w, im.h)
+
+        # 낚싯배 프롬프트
+        if self.state == "playing" and self.prompt_boat:
+            im = self.img("hud_prompt_boat.png")
+            bx, by = self.map["boat"]
+            im.draw(bx, H - by + 56, im.w, im.h)
+        elif self.state == "playing" and self.boat_mode is not None:
+            im = self.img("hud_prompt_leave.png")
+            im.draw(self.player.x + 96, H - self.player.y + 42, im.w, im.h)
+            if self.boat_mode == "fishing":
+                fi = self.img("hud_prompt_fish.png")
+                fi.draw(self.player.x, H - self.player.y + 92, fi.w, fi.h)
 
         # 상태 오버레이
         if self.state == "intro":
