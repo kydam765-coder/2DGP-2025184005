@@ -729,13 +729,40 @@ def fish_jump():
 
 
 def fish_gauge_bg():
-    """화면 위쪽 낚시 게이지 — (470, 122)에 그린다."""
+    """화면 아래쪽 타이밍 낚시 게이지."""
     im = Image.new("RGBA", (340, 72), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     d.rounded_rectangle([1, 1, 338, 70], 10, fill=(8, 18, 16, 220),
                         outline=(233, 166, 63, 210), width=2)
-    text(d, (14, 5), "낚시 중  ·  E 홀드", 17, CREAM + (255,))
+    text(d, (14, 5), "타이밍 낚시  ·  초록 구간에서 E 떼기", 15, CREAM + (255,))
     d.rounded_rectangle([14, 34, 326, 60], 6, fill=(4, 10, 8, 240))
+    return im
+
+
+def sign_post(label, w=300, accent=AMBER):
+    """물가 끝 안내 표지 — 나무 기둥 + 판자 + 아래쪽 화살표."""
+    im = Image.new("RGBA", (w, 88), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([w // 2 - 7, 34, w // 2 + 7, 88], 3,
+                        fill=(96, 62, 34, 255))
+    d.rounded_rectangle([2, 2, w - 3, 52], 8, fill=(52, 38, 26, 245),
+                        outline=accent + (255,), width=3)
+    text(d, (w / 2, 11), label, 21, CREAM + (255,), anchor="ma")
+    d.polygon([(w // 2 - 10, 57), (w // 2 + 10, 57), (w // 2, 76)],
+              fill=accent + (255,))
+    return im
+
+
+def pier():
+    """호숫가 맵 아래쪽 낚시터 부두."""
+    im = Image.new("RGBA", (224, 96), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([2, 14, 221, 68], 6, fill=(112, 78, 44, 255),
+                        outline=(64, 42, 24, 255), width=2)
+    for x in range(12, 216, 26):
+        d.line([(x, 17), (x, 65)], fill=(76, 50, 28, 190), width=2)
+    for px in (28, 194):
+        d.rounded_rectangle([px, 66, px + 10, 96], 2, fill=(78, 52, 30, 255))
     return im
 
 
@@ -797,8 +824,16 @@ def build_all():
     save(prompt_label("낚싯배 타기", 176, "Q"), "hud_prompt_boat.png")
     save(prompt_label("내리기", 132, "Q"), "hud_prompt_leave.png")
     save(prompt_label("낚시하기", 152, "E"), "hud_prompt_fish.png")
+    save(prompt_label("지금 떼기!", 160, "E"), "hud_prompt_release.png")
+    save(prompt_label("낚시터에 내리기", 200, "Q"), "hud_prompt_land.png")
+    save(prompt_label("부두로 돌아가기", 200, "Q"), "hud_prompt_return.png")
     save(toast("낚싯배 탑승!"), "hud_toast_boat.png")
     save(toast("물고기 도망!"), "hud_toast_miss.png")
+    save(toast("대물 낚시!"), "hud_toast_big.png")
+    save(toast("낚시터 도착!"), "hud_toast_spot.png")
+    save(sign_post("호숫가 이동"), "sign_to_lake.png")
+    save(sign_post("낚시터로 이동"), "sign_to_spot.png")
+    save(pier(), "prop_pier.png")
 
     names = [("숲속 캠핑장", "한낮  ·  MAP 01", AMBER),
              ("호숫가 캠핑장", "해 질 녘  ·  MAP 02", (233, 141, 79)),

@@ -50,7 +50,9 @@ BOAT_HULL_HALF_H = 42.0 # 배 그림 반높이 — 물 영역 위아래 끝에 �
 BOAT_HALF_W = 46.0      # 배 안에서 움직일 수 있는 가로 반폭
 BOAT_HALF_H = 17.0      # 배 안에서 움직일 수 있는 세로 반폭
 FISH_TIME = 1.5         # E 홀드로 게이지가 차는 시간
-FISH_ESCAPE = 0.35      # 물고기를 놓칠 확률
+FISH_ZONE_W = 0.20      # 움직이는 초록 구간 폭 (게이지 비율)
+FISH_ZONE_SPEED = 2.2   # 초록 구간이 왕복하는 속도
+FISH_PATIENCE = 2.4     # 걸린 뒤 이 시간 넘게 떼지 않으면 줄이 끊긴다
 FISH_COOLDOWN = 0.55    # 한 번 낚은 뒤 다시 시도할 수 있는 시간
 FISH_ANIM = 1.2         # 물고기가 떠오르는 연출 시간
 FISH_NOISE = 26.0       # 낚시 성공 시 발소리 대신 퍼지는 소음
@@ -501,11 +503,13 @@ class Game:
         self.chase_count = 0
         self.escaped = 0
         # 낚싯배 / 낚시 상태
-        self.boat_mode = None          # None / "sailing" / "fishing"
+        self.boat_mode = None          # None / "sailing" / "fishing" / "landed"
         self.boat = None
         self.lake = None
         self.prompt_boat = False
         self.fishing = 0.0
+        self.fish_hooked = False       # 게이지가 차서 E를 떼기를 기다리는 중
+        self.fish_hold = 0.0
         self.fish_cd = 0.0
         self.fish_anim = 0.0
         self.fish_miss = False
@@ -602,6 +606,9 @@ class Game:
         self.hidden = False
         self.chaser = None
         self.gauge = 0.0
+        self.fishing = 0.0
+        self.fish_hooked = False
+        self.fish_hold = 0.0
         self.toast_kind = "boat"
         self.toast_timer = 1.1
         return True
@@ -629,6 +636,35 @@ class Game:
         self.chaser = None
         self.gauge = 0.0
         self.noise = 0.0
+        self.fishing = 0.0
+        self.fish_hooked = False
+        self.fish_hold = 0.0
+
+    def at_fishing_spot(self):
+        """배가 낚시 맵 아래쪽 끝(낚시터)에 닿았는가."""
+        if self.boat_mode != "fishing" or self.lake is None:
+            return False
+        _, _, _, bottom = self.water_rect()
+        return self.boat["y"] >= bottom - BOAT_HULL_HALF_H - 10.0
+
+    def land_at_spot(self):
+        """Q — 낚시터 부두에 하선한다. 낚시는 배 위에서만 가능하므로 여기선 안 된다."""
+        self.boat_mode = "landed"
+        self.player.sitting = False
+        self.hidden = False
+        self.chaser = None
+        self.gauge = 0.0
+        self.noise = 0.0
+        self.fishing = 0.0
+        self.fish_hooked = False
+        self.fish_hold = 0.0
+        lx, ly = self.lake.get("landing", (640, 676))
+        self.player.x, self.player.y = float(lx), float(ly)
+        self.player.dir = "up"
+        # 배는 부두 옆에 매어 둔다 — 선수가 가리지 않게 살짝 왼쪽으로.
+        self.boat["x"] = max(BOAT_HULL_HALF_W, self.boat["x"] - 150.0)
+        self.toast_kind = "spot"
+        self.toast_timer = 1.1
 
     def leave_boat(self):
         """Q — 낚시 맵/항해 중이면 부두로 돌아온다."""
@@ -640,6 +676,15 @@ class Game:
         for f in self.foods:
             if f.index in self.collected:
                 f.collected = True
+
+    def update_landed(self, dt, hold):
+        """낚시터 부두 위 — 좁은 공간에서만 걸어 다닌다."""
+        self.fish_anim = max(0.0, self.fish_anim - dt)
+        self.player.update(dt, hold, [], [])
+        x0, y0, x1, y1 = self.lake.get("spot_rect", (548, 642, 732, 704))
+        self.player.x = max(x0, min(x1, self.player.x))
+        self.player.y = max(y0, min(y1, self.player.y))
+        self.player.sprinting = False
 
     def clamp_to_boat(self):
         bx, by = self.boat["x"], self.boat["y"]
@@ -690,26 +735,50 @@ class Game:
             _, _, _, water_bottom = self.water_rect()
             if self.boat["y"] >= water_bottom - BOAT_HULL_HALF_H - 0.01:
                 self.enter_lake()
-        else:
+        elif self.boat_mode == "fishing":
             self.update_fishing(dt, hold)
+
+    def fish_zone_center(self):
+        """게이지 위를 왕복하는 초록 구간의 중심 (0~1)."""
+        return 0.5 + 0.34 * math.sin(self.time * FISH_ZONE_SPEED)
+
+    def fish_on_target(self):
+        """가운데 낚시 바늘이 초록 구간 안에 있는가 — E를 떼는 순간 판정."""
+        return abs(self.fish_zone_center() - 0.5) <= FISH_ZONE_W / 2.0
 
     def update_fishing(self, dt, hold):
         self.fish_anim = max(0.0, self.fish_anim - dt)
         self.fish_cd = max(0.0, self.fish_cd - dt)
         if FISH_INDEX in self.collected:
             self.fishing = 0.0
+            self.fish_hooked = False
             return
-        if "collect" in hold and self.fish_cd <= 0:
+
+        held = "collect" in hold
+        if self.fish_hooked:
+            self.fish_hold += dt
+            if not held:
+                # E를 뗀 순간 타이밍 판정 — 랜덤 도망은 없다.
+                self.resolve_fishing(self.fish_on_target())
+            elif self.fish_hold >= FISH_PATIENCE:
+                self.resolve_fishing(False)     # 너무 오래 잡고 있으면 줄이 끊긴다
+            return
+
+        if held and self.fish_cd <= 0:
             self.fishing += dt / FISH_TIME
             if self.fishing >= 1.0:
-                self.fishing = 0.0
-                self.fish_cd = FISH_COOLDOWN
-                self.resolve_fishing()
+                self.fishing = 1.0
+                self.fish_hooked = True
+                self.fish_hold = 0.0
         else:
             self.fishing = max(0.0, self.fishing - dt / FISH_TIME * 1.6)
 
-    def resolve_fishing(self):
-        if self.fish_rng.random() < FISH_ESCAPE:
+    def resolve_fishing(self, success):
+        self.fishing = 0.0
+        self.fish_hooked = False
+        self.fish_hold = 0.0
+        self.fish_cd = FISH_COOLDOWN
+        if not success:
             self.fish_miss = True
             self.toast_kind = "fish_miss"
             self.toast_timer = 1.1
@@ -718,7 +787,7 @@ class Game:
         self.fish_anim = FISH_ANIM
         self.collected.add(FISH_INDEX)
         self.gauge = min(100.0, self.gauge + FISH_NOISE)
-        self.toast_kind = "good"
+        self.toast_kind = "big"
         self.toast_timer = 1.1
         w = self.sfx.get("sfx_step_run")
         if w is not None:
@@ -769,8 +838,11 @@ class Game:
         if self.door_lock > 0:
             self.door_lock = max(0.0, self.door_lock - dt)
 
-        # Q: 낚싯배 타기 / 내리기
+        # Q: 낚싯배 타기 / 내리기 / 낚시터 하선
         if "boat" in press:
+            if self.boat_mode == "fishing" and self.at_fishing_spot():
+                self.land_at_spot()
+                return
             if self.boat_mode is not None:
                 self.leave_boat()
                 return
@@ -784,7 +856,10 @@ class Game:
         if self.boat_mode is not None:
             self.prompt_boat = False
             self.prompt_food = None
-            self.update_boat(dt, hold)
+            if self.boat_mode == "landed":
+                self.update_landed(dt, hold)
+            else:
+                self.update_boat(dt, hold)
             return
 
         # X: 수풀 안에서만 앉기 / 일어나기 토글
@@ -1013,6 +1088,19 @@ class Game:
         self.img(self.scene["bg"]).draw_to_origin(0, 0)
         cone_name = self.scene.get("cone")
 
+        # 물 끝 안내 표지 — 호숫가 이동 / 낚시터로 이동
+        sign = self.scene.get("sign")
+        if sign is not None and self.state == "playing":
+            sx, sy, sname = sign
+            im = self.img(sname)
+            im.draw(sx, H - sy + im.h / 2, im.w, im.h)
+
+        # 낚시터 부두 — 하선한 뒤 그 위에 선수가 서 있다
+        if self.boat_mode == "landed" and self.lake is not None:
+            lx, ly = self.lake.get("landing", (640, 676))
+            pier = self.img("prop_pier.png")
+            pier.draw(lx, H - ly + pier.h / 2 - 10, pier.w, pier.h)
+
         # 조명 웅덩이 (밤)
         for p in self.props:
             if p.glow:
@@ -1108,8 +1196,22 @@ class Game:
             return
         self.img("hud_fish_bg.png").draw_to_origin(470, 518)
         frac = max(0.0, min(1.0, self.fishing))
-        from pico2d import draw_rectangle
-        draw_rectangle(486, 530, 486 + 310 * frac, 556, 240, 196, 104, filled=True)
+        if frac > 0.002:
+            draw_rectangle(486, 530, 486 + 310 * frac, 556,
+                           240, 196, 104, filled=True)
+
+        # 움직이는 초록 구간 — 게이지가 찬 뒤 E를 떼는 순간 여기로 판정한다.
+        c = self.fish_zone_center()
+        half = FISH_ZONE_W / 2.0
+        z0 = 486 + 310 * max(0.0, c - half)
+        z1 = 486 + 310 * min(1.0, c + half)
+        if self.fish_hooked:
+            draw_rectangle(int(z0), 530, int(z1), 556, 122, 190, 118, filled=True)
+        else:
+            draw_rectangle(int(z0), 530, int(z1), 556, 74, 126, 76, filled=True)
+
+        # 가운데 고정 낚시 바늘
+        draw_rectangle(638, 526, 642, 560, 250, 246, 236, filled=True)
 
     def draw_prop(self, p):
         if p.shadow:
@@ -1249,7 +1351,8 @@ class Game:
         if self.toast_timer > 0:
             t = self.toast_timer / 1.1
             names = {"bad": "hud_toast_bad.png", "boat": "hud_toast_boat.png",
-                     "fish_miss": "hud_toast_miss.png"}
+                     "fish_miss": "hud_toast_miss.png", "big": "hud_toast_big.png",
+                     "spot": "hud_toast_spot.png"}
             name = names.get(self.toast_kind, "hud_toast.png")
             self.img(name).draw(W / 2, H - 128 + (1 - t) * 14, 150, 44)
 
@@ -1274,10 +1377,17 @@ class Game:
             bx, by = self.map["boat"]
             im.draw(bx, H - by + 56, im.w, im.h)
         elif self.state == "playing" and self.boat_mode is not None:
-            im = self.img("hud_prompt_leave.png")
+            if self.boat_mode == "landed":
+                name = "hud_prompt_return.png"
+            elif self.at_fishing_spot():
+                name = "hud_prompt_land.png"
+            else:
+                name = "hud_prompt_leave.png"
+            im = self.img(name)
             im.draw(self.player.x + 96, H - self.player.y + 42, im.w, im.h)
             if self.boat_mode == "fishing":
-                fi = self.img("hud_prompt_fish.png")
+                fi = self.img("hud_prompt_release.png" if self.fish_hooked
+                              else "hud_prompt_fish.png")
                 fi.draw(self.player.x, H - self.player.y + 92, fi.w, fi.h)
 
         # 상태 오버레이
