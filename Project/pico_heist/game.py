@@ -812,6 +812,25 @@ class Game:
                 return p
         return None
 
+    def update_campers(self, dt):
+        """캠핑객 순찰·귀환 이동 — 낚싯배를 탄 뒤에도 계속 움직인다."""
+        for c in self.campers:
+            c.heard = False
+            if c.mode == "chase":
+                continue
+            if c.mode == "return":
+                c.update(dt)
+                tx, ty = c.path[c.ret]
+                c.move_toward(tx, ty, dt, CHASE_SPEED * 0.5, self.solids)
+                if math.hypot(tx - c.x, ty - c.y) < 8:
+                    c.mode = "patrol"
+                    c.idx = (c.ret + 1) % len(c.path)
+                    c.timer = c.wait
+                    if c.napper:
+                        c.sleeping = True      # 다시 눕는다
+                continue
+            c.update(dt)
+
     # ---------------------------------------------------------- update
     def update(self, dt, hold=frozenset(), press=frozenset()):
         self.time += dt
@@ -838,10 +857,12 @@ class Game:
         if self.door_lock > 0:
             self.door_lock = max(0.0, self.door_lock - dt)
 
-        # Q: 낚싯배 타기 / 내리기 / 낚시터 하선
+        # Q: 낚싯배 타기 / 낚시터 하선 / 부두 복귀
         if "boat" in press:
-            if self.boat_mode == "fishing" and self.at_fishing_spot():
-                self.land_at_spot()
+            if self.boat_mode == "fishing":
+                # 낚시터 부두에 닿기 전에는 절대 내리지 않는다.
+                if self.at_fishing_spot():
+                    self.land_at_spot()
                 return
             if self.boat_mode is not None:
                 self.leave_boat()
@@ -859,6 +880,8 @@ class Game:
             if self.boat_mode == "landed":
                 self.update_landed(dt, hold)
             else:
+                # 2번 맵 사람들은 배가 출발한 뒤에도 원래 순찰을 계속한다.
+                self.update_campers(dt)
                 self.update_boat(dt, hold)
             return
 
@@ -871,21 +894,7 @@ class Game:
 
         self.player.update(dt, hold, self.solids, self.no_go)
 
-        for c in self.campers:
-            if c.mode == "chase":
-                continue
-            if c.mode == "return":
-                c.update(dt)
-                tx, ty = c.path[c.ret]
-                c.move_toward(tx, ty, dt, CHASE_SPEED * 0.5, self.solids)
-                if math.hypot(tx - c.x, ty - c.y) < 8:
-                    c.mode = "patrol"
-                    c.idx = (c.ret + 1) % len(c.path)
-                    c.timer = c.wait
-                    if c.napper:
-                        c.sleeping = True      # 다시 눕는다
-                continue
-            c.update(dt)
+        self.update_campers(dt)
 
         # 수풀 속에 몸을 숨겼는가 (수풀 잎에 발이 들어가면 은신)
         self.hidden_bush = self.bush_at(self.player.x, self.player.y)
@@ -1377,14 +1386,19 @@ class Game:
             bx, by = self.map["boat"]
             im.draw(bx, H - by + 56, im.w, im.h)
         elif self.state == "playing" and self.boat_mode is not None:
+            # 호숫가 맵에서는 낚시터 부두에 닿기 전에 '내리기' 문구를 띄우지 않는다.
+            name = None
             if self.boat_mode == "landed":
                 name = "hud_prompt_return.png"
+            elif self.boat_mode == "sailing":
+                name = "hud_prompt_leave.png"
             elif self.at_fishing_spot():
                 name = "hud_prompt_land.png"
-            else:
-                name = "hud_prompt_leave.png"
-            im = self.img(name)
-            im.draw(self.player.x + 96, H - self.player.y + 42, im.w, im.h)
+            elif self.boat["y"] >= 600:
+                name = "hud_prompt_to_spot.png"
+            if name is not None:
+                im = self.img(name)
+                im.draw(self.player.x + 96, H - self.player.y + 42, im.w, im.h)
             if self.boat_mode == "fishing":
                 fi = self.img("hud_prompt_release.png" if self.fish_hooked
                               else "hud_prompt_fish.png")
