@@ -686,9 +686,9 @@ class Game:
         self.clamp_to_boat()
 
         if self.boat_mode == "sailing":
-            # 물의 위쪽 끝(배 윗변이 물 시작선에 닿는 지점)에서 낚시 맵으로 전환.
-            _, water_top, _, _ = self.water_rect()
-            if self.boat["y"] <= water_top + BOAT_HULL_HALF_H + 0.01:
+            # 육지 쪽(물 시작선)이 아니라 물의 먼 쪽 끝(화면 아래)에 닿아야 전환.
+            _, _, _, water_bottom = self.water_rect()
+            if self.boat["y"] >= water_bottom - BOAT_HULL_HALF_H - 0.01:
                 self.enter_lake()
         else:
             self.update_fishing(dt, hold)

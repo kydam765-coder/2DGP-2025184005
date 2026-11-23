@@ -27,7 +27,8 @@ KEYMAP = {
     SDLK_LSHIFT: "sprint", SDLK_RSHIFT: "sprint",
 }
 ONESHOT = {"collect", "restart", "sit", "boat"}
-HOLDS = {"left", "right", "up", "down", "sprint"}
+# collect(E)는 음식 줍기엔 press, 낚시 게이지엔 hold 로 둘 다 필요하다.
+HOLDS = {"left", "right", "up", "down", "sprint", "collect"}
 
 
 def main():
@@ -53,7 +54,7 @@ def main():
                     continue
                 if act in ONESHOT:
                     press.add(act)
-                else:
+                if act in HOLDS:
                     hold.add(act)
             elif e.type == SDL_KEYUP:
                 act = KEYMAP.get(e.key)
