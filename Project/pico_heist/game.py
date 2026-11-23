@@ -45,9 +45,8 @@ DOOR_LOCK = 0.6         # 들어가고 나온 직후 출입구 재입력 방지
 
 # ---- 2번 맵 낚싯배 / 낚시
 BOAT_SPEED = 190.0      # WASD / 방향키로 배를 조종하는 속도
-BOAT_ARRIVE_Y = 150.0   # 화면 위쪽 끝 — 이 y에 닿으면 낚시 전용 맵으로 전환
-BOAT_MARGIN_X = 104.0   # 배 그림 반폭(98) + 여유 — 좌우 화면 끝에서 멈춤
-BOAT_BOTTOM_Y = H - 46.0  # 화면 아래쪽 끝
+BOAT_HULL_HALF_W = 98.0 # 배 그림 반폭 — 물 영역 좌우 끝에 배를 붙일 때 사용
+BOAT_HULL_HALF_H = 42.0 # 배 그림 반높이 — 물 영역 위아래 끝에 배를 붙일 때 사용
 BOAT_HALF_W = 46.0      # 배 안에서 움직일 수 있는 가로 반폭
 BOAT_HALF_H = 17.0      # 배 안에서 움직일 수 있는 세로 반폭
 FISH_TIME = 1.5         # E 홀드로 게이지가 차는 시간
@@ -647,40 +646,51 @@ class Game:
         self.player.x = max(bx - BOAT_HALF_W, min(bx + BOAT_HALF_W, self.player.x))
         self.player.y = max(by - BOAT_HALF_H, min(by + BOAT_HALF_H, self.player.y))
 
+    def water_rect(self):
+        """현재 장면에서 배가 다닐 수 있는 물 영역 (x0, y0, x1, y1)."""
+        return self.scene.get("water", (0, 0, W, H))
+
+    def clamp_boat_to_water(self):
+        """배 그림 전체가 물 안에 들어오도록 중심 좌표를 제한한다."""
+        x0, y0, x1, y1 = self.water_rect()
+        self.boat["x"] = max(x0 + BOAT_HULL_HALF_W,
+                             min(x1 - BOAT_HULL_HALF_W, self.boat["x"]))
+        self.boat["y"] = max(y0 + BOAT_HULL_HALF_H,
+                             min(y1 - BOAT_HULL_HALF_H, self.boat["y"]))
+
     def update_boat(self, dt, hold):
-        if self.boat_mode == "sailing":
-            # WASD / 방향키로 배 자체를 조종한다 — 자동 항해는 없다.
-            dx = (1 if "right" in hold else 0) - (1 if "left" in hold else 0)
-            dy = (1 if "down" in hold else 0) - (1 if "up" in hold else 0)
-            if dx or dy:
-                ln = math.hypot(dx, dy)
-                dx, dy = dx / ln, dy / ln
-                self.boat["x"] += dx * BOAT_SPEED * dt
-                self.boat["y"] += dy * BOAT_SPEED * dt
-                self.boat["x"] = max(BOAT_MARGIN_X,
-                                    min(W - BOAT_MARGIN_X, self.boat["x"]))
-                self.boat["y"] = max(BOAT_ARRIVE_Y,
-                                    min(BOAT_BOTTOM_Y, self.boat["y"]))
-                if abs(dx) >= abs(dy):
-                    self.player.dir = "right" if dx > 0 else "left"
-                else:
-                    self.player.dir = "down" if dy > 0 else "up"
-                self.player.moving = True
-                self.player.anim += dt
-                self.player.frame = int(self.player.anim / 0.14) % 2
+        # 항해 중이든 낚시 맵이든 WASD / 방향키로 배 자체를 조종한다.
+        dx = (1 if "right" in hold else 0) - (1 if "left" in hold else 0)
+        dy = (1 if "down" in hold else 0) - (1 if "up" in hold else 0)
+        if dx or dy:
+            ln = math.hypot(dx, dy)
+            dx, dy = dx / ln, dy / ln
+            self.boat["x"] += dx * BOAT_SPEED * dt
+            self.boat["y"] += dy * BOAT_SPEED * dt
+            if abs(dx) >= abs(dy):
+                self.player.dir = "right" if dx > 0 else "left"
             else:
-                self.player.moving = False
-                self.player.anim = 0.0
-                self.player.frame = 0
-            # 선수는 배 위에 붙어 따라간다.
-            self.player.x, self.player.y = self.boat["x"], self.boat["y"]
-            self.clamp_to_boat()
-            if self.boat["y"] <= BOAT_ARRIVE_Y + 0.01:
+                self.player.dir = "down" if dy > 0 else "up"
+            self.player.moving = True
+            self.player.anim += dt
+            self.player.frame = int(self.player.anim / 0.14) % 2
+        else:
+            self.player.moving = False
+            self.player.anim = 0.0
+            self.player.frame = 0
+        self.player.sprinting = False
+
+        # 육지 쪽으로는 절대 못 간다 — 물 영역 끝에서 멈춘다.
+        self.clamp_boat_to_water()
+        self.player.x, self.player.y = self.boat["x"], self.boat["y"]
+        self.clamp_to_boat()
+
+        if self.boat_mode == "sailing":
+            # 물의 위쪽 끝(배 윗변이 물 시작선에 닿는 지점)에서 낚시 맵으로 전환.
+            _, water_top, _, _ = self.water_rect()
+            if self.boat["y"] <= water_top + BOAT_HULL_HALF_H + 0.01:
                 self.enter_lake()
-        elif self.boat_mode == "fishing":
-            # 낚시 맵에서도 배 안에서만 걸어 다닌다.
-            self.player.update(dt, hold, [], [])
-            self.clamp_to_boat()
+        else:
             self.update_fishing(dt, hold)
 
     def update_fishing(self, dt, hold):
