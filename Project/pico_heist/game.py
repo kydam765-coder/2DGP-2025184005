@@ -516,7 +516,7 @@ class Game:
         self.chase_count = 0
         self.escaped = 0
         # 낚싯배 / 낚시 상태
-        self.boat_mode = None          # None / "sailing" / "fishing" / "landed"
+        self.boat_mode = None          # None / "sailing" / "fishing"
         self.boat = None
         self.lake = None
         self.prompt_boat = False
@@ -529,6 +529,11 @@ class Game:
         # 진짜 음식을 다 먹으면 출구가 열리고, 피코가 걸어가야 다음 맵으로 간다.
         self.exit_open = False
         self.prompt_exit = False
+
+        # 2번 맵의 낚싯배는 처음부터 원래 부두에 매어 있다.
+        if i == LAKE_MAP and d.get("boat"):
+            bx, by = d["boat"]
+            self.boat = {"x": float(bx), "y": float(by)}
 
     # ---------------------------------------------------------- 텐트 출입
     def tent_food_index(self, i=None):
@@ -653,52 +658,64 @@ class Game:
         self.fish_hold = 0.0
 
     def at_fishing_spot(self):
-        """배가 낚시 맵 아래쪽 끝(낚시터)에 닿았는가."""
+        """배가 낚시 맵 아래쪽 끝(2번 맵 부두로 돌아가는 지점)에 닿았는가."""
         if self.boat_mode != "fishing" or self.lake is None:
             return False
         _, _, _, bottom = self.water_rect()
         return self.boat["y"] >= bottom - BOAT_HULL_HALF_H - 10.0
 
-    def land_at_spot(self):
-        """Q — 낚시터 부두에 하선한다. 낚시는 배 위에서만 가능하므로 여기선 안 된다."""
-        self.boat_mode = "landed"
-        self.player.sitting = False
-        self.hidden = False
-        self.chaser = None
-        self.gauge = 0.0
-        self.noise = 0.0
-        self.fishing = 0.0
-        self.fish_hooked = False
-        self.fish_hold = 0.0
-        lx, ly = self.lake.get("landing", (640, 676))
-        self.player.x, self.player.y = float(lx), float(ly)
-        self.player.dir = "up"
-        # 배는 부두 옆에 매어 둔다 — 선수가 가리지 않게 살짝 왼쪽으로.
-        self.boat["x"] = max(BOAT_HULL_HALF_W, self.boat["x"] - 150.0)
-        self.toast_kind = "spot"
-        self.toast_timer = 1.1
+    def at_home_dock(self):
+        """배가 2번 맵 원래 부두에 매어 있는가."""
+        bp = self.map.get("boat")
+        return (bp is not None and self.boat is not None
+                and math.hypot(bp[0] - self.boat["x"],
+                               bp[1] - self.boat["y"]) < 24.0)
 
-    def leave_boat(self):
-        """Q — 낚시 맵/항해 중이면 부두로 돌아온다. 열린 출구는 그대로 유지."""
+    def return_to_dock(self):
+        """Q — 호숫가 아래쪽 끝에서 2번 맵으로 돌아온다. 배는 아직 탄 상태."""
         was_open = self.exit_open
         self.load_map(self.map_index)
         self.exit_open = was_open
         bx, by = self.map["boat"]
-        self.player.x, self.player.y = float(bx), float(by) - 72
+        self.boat = {"x": float(bx), "y": float(by)}
+        self.boat_mode = "sailing"
+        self.player.x, self.player.y = float(bx), float(by)
         self.player.dir = "down"
+        self.player.sitting = False
         self.state = "playing"
+        self.prompt_boat = False
+        self.fishing = 0.0
+        self.fish_hooked = False
+        self.fish_hold = 0.0
+        self.fish_cd = 0.0
+        self.fish_anim = 0.0
+        self.fish_miss = False
+        self.toast_kind = "spot"
+        self.toast_timer = 1.1
         for f in self.foods:
             if f.index in self.collected:
                 f.collected = True
 
-    def update_landed(self, dt, hold):
-        """낚시터 부두 위 — 좁은 공간에서만 걸어 다닌다."""
-        self.fish_anim = max(0.0, self.fish_anim - dt)
-        self.player.update(dt, hold, [], [])
-        x0, y0, x1, y1 = self.lake.get("spot_rect", (548, 642, 732, 704))
-        self.player.x = max(x0, min(x1, self.player.x))
-        self.player.y = max(y0, min(y1, self.player.y))
-        self.player.sprinting = False
+    def leave_boat(self):
+        """Q — 원래 부두에서 하선한다. 배는 부두 자리에 그대로 둔다."""
+        if self.boat is None:
+            return
+        bx, by = self.map["boat"]
+        self.boat = {"x": float(bx), "y": float(by)}
+        self.boat_mode = None
+        self.lake = None
+        self.scene = self.map
+        self.player.x, self.player.y = float(bx), float(by) - 72
+        self.player.dir = "down"
+        self.player.sitting = False
+        self.fishing = 0.0
+        self.fish_hooked = False
+        self.fish_hold = 0.0
+        self.state = "playing"
+        self.prompt_boat = False
+        for f in self.foods:
+            if f.index in self.collected:
+                f.collected = True
 
     def clamp_to_boat(self):
         bx, by = self.boat["x"], self.boat["y"]
@@ -871,15 +888,17 @@ class Game:
         if self.door_lock > 0:
             self.door_lock = max(0.0, self.door_lock - dt)
 
-        # Q: 낚싯배 타기 / 낚시터 하선 / 부두 복귀
+        # Q: 낚싯배 타기 / 부두 복귀 / 원래 부두에서 하선
         if "boat" in press:
             if self.boat_mode == "fishing":
-                # 낚시터 부두에 닿기 전에는 절대 내리지 않는다.
+                # 호숫가 맵에서는 내리지 않고 2번 맵 원래 부두로 돌아간다.
                 if self.at_fishing_spot():
-                    self.land_at_spot()
+                    self.return_to_dock()
                 return
-            if self.boat_mode is not None:
-                self.leave_boat()
+            if self.boat_mode == "sailing":
+                # 하선은 원래 부두에 배를 매어 둔 뒤에만 가능하다.
+                if self.at_home_dock():
+                    self.leave_boat()
                 return
             bp = self.map.get("boat")
             if (self.map_index == LAKE_MAP and bp is not None
@@ -891,12 +910,9 @@ class Game:
         if self.boat_mode is not None:
             self.prompt_boat = False
             self.prompt_food = None
-            if self.boat_mode == "landed":
-                self.update_landed(dt, hold)
-            else:
-                # 2번 맵 사람들은 배가 출발한 뒤에도 원래 순찰을 계속한다.
-                self.update_campers(dt)
-                self.update_boat(dt, hold)
+            # 2번 맵 사람들은 배가 출발한 뒤에도 원래 순찰을 계속한다.
+            self.update_campers(dt)
+            self.update_boat(dt, hold)
             return
 
         # X: 수풀 안에서만 앉기 / 일어나기 토글
@@ -1136,12 +1152,6 @@ class Game:
             sx, sy, sname = sign
             im = self.img(sname)
             im.draw(sx, H - sy + im.h / 2, im.w, im.h)
-
-        # 낚시터 부두 — 하선한 뒤 그 위에 선수가 서 있다
-        if self.boat_mode == "landed" and self.lake is not None:
-            lx, ly = self.lake.get("landing", (640, 676))
-            pier = self.img("prop_pier.png")
-            pier.draw(lx, H - ly + pier.h / 2 - 10, pier.w, pier.h)
 
         # 출구가 열리면 길 표지를 따라 게이트까지 안내한다.
         ex = self.map.get("exit")
@@ -1447,14 +1457,13 @@ class Game:
             bx, by = self.map["boat"]
             im.draw(bx, H - by + 56, im.w, im.h)
         elif self.state == "playing" and self.boat_mode is not None:
-            # 호숫가 맵에서는 낚시터 부두에 닿기 전에 '내리기' 문구를 띄우지 않는다.
+            # 호숫가에서는 내리지 않고, 2번 맵 원래 부두에서만 하선 문구가 뜬다.
             name = None
-            if self.boat_mode == "landed":
-                name = "hud_prompt_return.png"
-            elif self.boat_mode == "sailing":
-                name = "hud_prompt_leave.png"
+            if self.boat_mode == "sailing":
+                if self.at_home_dock():
+                    name = "hud_prompt_land.png"
             elif self.at_fishing_spot():
-                name = "hud_prompt_land.png"
+                name = "hud_prompt_return.png"
             elif self.boat["y"] >= 600:
                 name = "hud_prompt_to_spot.png"
             if name is not None:

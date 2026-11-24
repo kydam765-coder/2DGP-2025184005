@@ -850,13 +850,13 @@ def build_all():
     save(prompt_label("지금 떼기!", 160, "E"), "hud_prompt_release.png")
     save(prompt_label("배에서 내리기", 200, "Q"), "hud_prompt_land.png")
     save(prompt_label("부두로 돌아가기", 200, "Q"), "hud_prompt_return.png")
-    save(prompt_label("낚시터로 이동", 200, "↓"), "hud_prompt_to_spot.png")
+    save(prompt_label("부두로 이동", 200, "↓"), "hud_prompt_to_spot.png")
     save(toast("낚싯배 탑승!"), "hud_toast_boat.png")
     save(toast("물고기 도망!"), "hud_toast_miss.png")
     save(toast("대물 낚시!"), "hud_toast_big.png")
-    save(toast("낚시터 도착!"), "hud_toast_spot.png")
+    save(toast("부두 도착!"), "hud_toast_spot.png")
     save(sign_post("호숫가 이동"), "sign_to_lake.png")
-    save(sign_post("낚시터로 이동"), "sign_to_spot.png")
+    save(sign_post("부두로 이동"), "sign_to_spot.png")
     save(pier(), "prop_pier.png")
 
     # 걸어서 다음 맵으로 — 출구 게이트와 길 표지
