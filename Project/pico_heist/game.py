@@ -58,7 +58,7 @@ FISH_COOLDOWN = 0.55    # 한 번 낚은 뒤 다시 시도할 수 있는 시간
 FISH_ANIM = 1.2         # 물고기가 떠오르는 연출 시간
 FISH_NOISE = 26.0       # 낚시 성공 시 발소리 대신 퍼지는 소음
 
-# ---- 배고픔 / 간식 바구니 (진짜 음식 규칙과 완전히 별개)
+# ---- 배고픔 / 피크닉 바구니 (진짜 음식 규칙과 완전히 별개)
 HUNGER_MAX = 100.0
 HUNGER_DRAIN = HUNGER_MAX / 150.0   # 아무것도 안 먹으면 약 150초에 0
 HUNGER_SLOW_AT = 60.0              # 이 값 아래서부터 화면이 어두워지고 느려진다
@@ -437,8 +437,8 @@ class Food:
         self.t = (index * 1.7) % 6.28
 
 
-class SnackBasket:
-    """맵에 놓인 작은 캔버스 간식 바구니 — 진짜 음식과 무관한 별도 자원."""
+class PicnicBasket:
+    """맵에 놓인 피크닉 바구니 — 안에 간식이 들어 있는 별도 자원."""
 
     def __init__(self, x, y, index, left=SNACK_PER_BASKET):
         self.x, self.y = float(x), float(y)
@@ -450,7 +450,7 @@ class SnackBasket:
         return self.left <= 0
 
     def sprite(self):
-        return "prop_snack_basket_open.png" if self.empty else "prop_snack_basket.png"
+        return "prop_picnic_basket_open.png" if self.empty else "prop_picnic_basket.png"
 
 
 class Game:
@@ -537,11 +537,11 @@ class Game:
         self.no_go = [tuple(r) for r in d["no_go"]]
         self.foods = [Food(k, x, y, FOOD_BASE[i] + j)
                       for j, (k, x, y) in enumerate(d["foods"])]
-        # 간식 바구니는 맵 데이터에 따로 있다 — 비운 바구니는 다시 오지 않아도 비어 있다.
-        self.baskets = [SnackBasket(x, y, j,
-                                    left=0 if (i, j) in self.emptied_baskets
-                                    else SNACK_PER_BASKET)
-                        for j, (x, y) in enumerate(d.get("snack_baskets", []))]
+        # 피크닉 바구니는 맵 데이터에 따로 있다 — 비운 바구니는 다시 오지 않아도 비어 있다.
+        self.baskets = [PicnicBasket(x, y, j,
+                                     left=0 if (i, j) in self.emptied_baskets
+                                     else SNACK_PER_BASKET)
+                        for j, (x, y) in enumerate(d.get("picnic_baskets", []))]
         self.prompt_basket = None
         self.campers = [Camper(c) for c in d["campers"]]
         self.player = Player(*d["player"])
@@ -620,7 +620,7 @@ class Game:
         food = Food(k, fx, fy, idx)
         food.collected = idx in self.collected
         self.foods = [food]
-        # 텐트 안에는 간식 바구니가 없다 (배고픔 상태는 그대로 유지).
+        # 텐트 안에는 피크닉 바구니가 없다 (배고픔 상태는 그대로 유지).
         self.baskets = []
         self.prompt_basket = None
         self.campers = [Camper(c) for c in t["campers"]]
@@ -689,7 +689,7 @@ class Game:
         self.solids, self.no_go = [], []
         self.campers = []
         self.foods = []
-        # 호숫가 배 위에는 간식 바구니가 없다.
+        # 호숫가 배 위에는 피크닉 바구니가 없다.
         self.baskets = []
         self.prompt_basket = None
         self.door = None
@@ -1416,7 +1416,7 @@ class Game:
         self.img("food_%s.png" % f.kind).draw(f.x, H - f.y + bob, 54, 54)
 
     def draw_basket(self, b):
-        """캔버스 간식 바구니 — 진짜 음식의 호박색 발광보다 훨씬 약하게 표시."""
+        """피크닉 바구니 — 진짜 음식의 호박색 발광보다 훨씬 약하게 표시."""
         self.img("shadow.png").draw(b.x, H - b.y + 6, 62, 20)
         im = self.img(b.sprite())
         im.draw(b.x, H - b.y + im.h / 2 - 3, im.w, im.h)
@@ -1631,7 +1631,7 @@ class Game:
                               else "hud_prompt_fish.png")
                 fi.draw(self.player.x, H - self.player.y + 92, fi.w, fi.h)
 
-        # Tab — 간식 가방 패널 (작은 천 주머니 UI, 월드 가상에 띄운다)
+        # Tab — 피크닉 가방 패널 (작은 천 주머니 UI, 월드 위에 띄운다)
         if self.state == "playing" and self.bag_open:
             self.img("hud_bag.png").draw(W / 2, H / 2, 420, 230)
             bx0 = W / 2 - 160
