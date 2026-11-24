@@ -3,12 +3,13 @@
 
     python main.py
 
-WASD 이동  ·  E 음식 줍기/배 위 낚시 홀드→초록 구간에서 떼기  ·  Q 낚싯배 타기·낚시터 하선  ·  X 수풀 앉기  ·  R 다시 시작  ·  ESC 종료
+WASD 이동  ·  E 음식 줍기/간식 꺼내기/배 위 낚시 홀드→초록 구간에서 떼기  ·  TAB 간식 가방  ·  F 간식 먹기  ·  Q 낚싯배 타기·낚시터 하선  ·  X 수풀 앉기  ·  R 다시 시작  ·  ESC 종료
 """
 import pico2d
 from pico2d import (SDLK_a, SDLK_d, SDLK_e, SDLK_LEFT, SDLK_LSHIFT,
                     SDLK_q, SDLK_RSHIFT, SDLK_RIGHT, SDLK_r, SDLK_x,
                     SDLK_s, SDLK_DOWN, SDLK_UP, SDLK_w, SDLK_ESCAPE,
+                    SDLK_TAB, SDLK_f,
                     SDL_KEYDOWN, SDL_KEYUP, SDL_QUIT, close_canvas,
                     get_events, get_time, hide_lattice, open_canvas,
                     update_canvas)
@@ -21,12 +22,14 @@ KEYMAP = {
     SDLK_w: "up", SDLK_UP: "up",
     SDLK_s: "down", SDLK_DOWN: "down",
     SDLK_e: "collect",
+    SDLK_TAB: "bag",
+    SDLK_f: "eat",
     SDLK_x: "sit",
     SDLK_q: "boat",
     SDLK_r: "restart",
     SDLK_LSHIFT: "sprint", SDLK_RSHIFT: "sprint",
 }
-ONESHOT = {"collect", "restart", "sit", "boat"}
+ONESHOT = {"collect", "restart", "sit", "boat", "bag", "eat"}
 # collect(E)는 음식 줍기엔 press, 낚시 게이지엔 hold 로 둘 다 필요하다.
 HOLDS = {"left", "right", "up", "down", "sprint", "collect"}
 

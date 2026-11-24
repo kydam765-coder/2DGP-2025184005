@@ -428,6 +428,38 @@ def crate():
     return down(im, w, h)
 
 
+def snack_basket(open_=False):
+    """작은 캔버스 간식 꾸러미 — 나무 상자보다 작고 부드러운 캠핑 짐."""
+    w, h, ss = 72, 56, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    if open_:
+        # 뒤로 젖혀진 뚜껑 + 비어 있는 어두운 내부
+        p.rr((14, 6, 58, 20), 4, "#D9BC88")
+        p.rr((14, 6, 58, 12), 3, "#C7A570")
+        p.ell((14, 18, 58, 32), "#4A3626")
+        p.ell((19, 21, 53, 30), "#5C4530")
+    else:
+        # 손잡이와 덮개가 보이는 닫힌 바구니
+        p.arc((20, 6, 52, 32), 180, 360, "#6B4E32", 3)
+        p.rr((12, 18, 60, 30), 5, "#DCC08C")
+        p.rr((12, 18, 60, 24), 4, "#EAD3A6")
+    # 캔버스 몸체
+    p.rr((10, 24, 62, 50), 6, "#C9A36A")
+    p.rr((10, 24, 62, 32), 5, "#D7B57E")
+    for x in (23, 36, 49):
+        p.pline([(x, 32), (x, 49)], "#A9814C", 1)
+    # 가죽 끈
+    p.rr((16, 22, 22, 50), 2, "#6B4E32")
+    p.rr((50, 22, 56, 50), 2, "#6B4E32")
+    # 호박색 간식 라벨
+    p.rr((28, 34, 44, 46), 3, "#E9A63F")
+    p.rr((31, 37, 41, 43), 1, "#6B4E32")
+    if not open_:
+        p.rr((32, 27, 40, 34), 2, "#B97C22")
+    return down(im, w, h)
+
+
 def speaker():
     w, h, ss = 56, 96, 3
     im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
@@ -665,6 +697,8 @@ def build_all():
     save(booth("#B97C22"), "prop_booth_amber.png")
     save(lantern(), "prop_lantern.png")
     save(crate(), "prop_crate.png")
+    save(snack_basket(False), "prop_snack_basket.png")
+    save(snack_basket(True), "prop_snack_basket_open.png")
     save(speaker(), "prop_speaker.png")
     save(bench(), "prop_bench.png")
     save(grill(), "prop_grill.png")

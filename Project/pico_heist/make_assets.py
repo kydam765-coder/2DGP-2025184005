@@ -421,7 +421,8 @@ def slot(empty=True):
 
 def controls():
     items = [("WASD", "이동"), ("SHIFT", "달리기"), ("E", "줍기/낚시"),
-             ("Q", "낚싯배"), ("X", "수풀 앉기"), ("R", "다시 시작")]
+             ("TAB", "간식 가방"), ("F", "간식 먹기"),
+              ("Q", "낚싯배"), ("X", "수풀 앉기"), ("R", "다시 시작")]
     fk, fl = font(11, True), font(12, True)
     spans, x = [], 16
     for key, label in items:
@@ -645,6 +646,68 @@ def gauge_bg():
     return im
 
 
+# ---------------------------------------------------------------- 배고픔 / 간식
+def hunger_label():
+    im = plate(104, 26, 7, (14, 26, 20, 150), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    text(d, (10, 5), "배고픔", 12, (206, 216, 204, 255), bold=True)
+    return im
+
+
+def hunger_bg():
+    im = Image.new("RGBA", (244, 26), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 242, 24], 8, fill=(8, 16, 12, 210),
+                        outline=(122, 190, 118, 90), width=2)
+    for i in range(1, 5):
+        x = 2 + i * 48
+        d.line([x, 6, x, 20], fill=(255, 255, 255, 24), width=1)
+    return im
+
+
+def hunger_vignette():
+    """배고픔이 낮을 때 겹치는 어두운 가장자리 — 감지 경고(빨강)와 구분."""
+    mask = Image.new("L", (W, H), 255)
+    d = ImageDraw.Draw(mask)
+    d.ellipse([W * 0.02, H * 0.06, W * 0.98, H * 0.94], fill=0)
+    mask = mask.filter(ImageFilter.GaussianBlur(100))
+    out = Image.new("RGBA", (W, H), (12, 9, 6, 255))
+    out.putalpha(mask.point(lambda v: int(v * 0.95)))
+    return out
+
+
+def bag_count(n):
+    return counter_plate("간식:", f"{n}개", (233, 166, 63), 124)
+
+
+def bag_panel():
+    """Tab 으로 여는 작은 천 주머니 패널 — 런타임에 개수·게이지를 겹쳐 그린다."""
+    w, h = 420, 230
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([2, 2, w - 3, h - 3], 18, fill=(18, 32, 24, 238),
+                        outline=(214, 180, 122, 230), width=3)
+    # 천 주머니 봉제선
+    d.rounded_rectangle([10, 10, w - 11, h - 11], 14, outline=(236, 212, 166, 70),
+                        width=2)
+    for x in range(26, w - 20, 18):
+        d.line([(x, 13), (x + 6, 13)], fill=(236, 212, 166, 90), width=2)
+        d.line([(x, h - 14), (x + 6, h - 14)], fill=(236, 212, 166, 90), width=2)
+    # 끈과 버클
+    d.arc([w / 2 - 52, -26, w / 2 + 52, 44], 180, 360, fill=(204, 168, 110, 255),
+          width=6)
+    d.rounded_rectangle([w / 2 - 18, 36, w / 2 + 18, 58], 5,
+                        fill=(233, 166, 63, 255))
+    text(d, (w / 2, 12), "간식 가방", 21, CREAM + (255,), anchor="ma")
+    text(d, (24, 96), "배고픔", 13, (206, 216, 204, 255))
+    d.line([24, 138, w - 24, 138], fill=(255, 255, 255, 30), width=2)
+    text(d, (24, 152), "Tab  가방 닫기", 15, CREAM + (255,))
+    text(d, (24, 180), "F  간식 1개 먹기  (배고픔 +30)", 14, (233, 200, 142, 255))
+    text(d, (24, 206), "바구니에서 E로 간식을 담는다", 12, (168, 186, 168, 255),
+         bold=False)
+    return im
+
+
 def map_clear():
     im = Image.new("RGBA", (W, H), (6, 12, 9, 120))
     d = ImageDraw.Draw(im)
@@ -811,10 +874,16 @@ def build_all():
     save(glow(420, (246, 200, 110), 44), "glow_lamp.png")
     save(dark_vignette(), "vignette_dark.png")
     save(red_vignette(), "vignette_red.png")
+    save(hunger_vignette(), "vignette_hunger.png")
 
     save(hud_bar(), "hud_bar.png")
     save(gauge_label(), "hud_gauge.png")
     save(gauge_bg(), "hud_gauge_bg.png")
+    save(hunger_label(), "hud_hunger.png")
+    save(hunger_bg(), "hud_hunger_bg.png")
+    save(bag_panel(), "hud_bag.png")
+    for n in range(10):
+        save(bag_count(n), "hud_bag_count_%d.png" % n)
     save(slot(True), "slot_empty.png")
     save(slot(False), "slot_full.png")
     save(slot_rotten(), "slot_rotten.png")
@@ -824,6 +893,9 @@ def build_all():
     save(prompt_label("일어나기", 132, "X"), "hud_prompt_stand.png")
     save(toast(), "hud_toast.png")
     save(toast_bad(), "hud_toast_bad.png")
+    save(prompt_label("간식 꺼내기", 176, "E"), "hud_prompt_snack.png")
+    save(toast("간식 +2"), "hud_toast_snack.png")
+    save(toast("배고픔 +30"), "hud_toast_eat.png")
     save(hidden_badge(), "hud_hidden.png")
     save(sit_badge(), "hud_sit.png")
     for n in range(16):

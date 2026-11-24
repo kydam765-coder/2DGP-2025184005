@@ -58,6 +58,17 @@ FISH_COOLDOWN = 0.55    # 한 번 낚은 뒤 다시 시도할 수 있는 시간
 FISH_ANIM = 1.2         # 물고기가 떠오르는 연출 시간
 FISH_NOISE = 26.0       # 낚시 성공 시 발소리 대신 퍼지는 소음
 
+# ---- 배고픔 / 간식 바구니 (진짜 음식 규칙과 완전히 별개)
+HUNGER_MAX = 100.0
+HUNGER_DRAIN = HUNGER_MAX / 150.0   # 아무것도 안 먹으면 약 150초에 0
+HUNGER_SLOW_AT = 60.0              # 이 값 아래서부터 화면이 어두워지고 느려진다
+HUNGER_MIN_SPEED = 0.25            # 배고픔 0에서도 완전 정지하지는 않는다
+SNACK_RESTORE = 30.0               # 간식 하나가 회복시키는 배고픔
+SNACK_PER_BASKET = 2               # 바구니 하나당 간식 개수
+EAT_LOCK = 0.4                     # 먹는 동안 짧게 멈춘다
+EAT_NOISE = 6.0                    # 섭취 소음 — 수풀 안에서는 줄어든다
+BASKET_RADIUS = 78.0               # 바구니에서 간식을 꺼낼 수 있는 거리
+
 # ---- 썩은 음식
 GOOD_OUTDOOR = 2        # 야외에서 카운트되는 음식은 맵마다 최대 2개
 #       1·2번 맵: 야외 4개 중 2개 썩음 + 텐트 음식 1개(항상 정상·필수) = 정상 3개
@@ -196,7 +207,7 @@ class Player:
         self.speed = WALK_SPEED
         self.moved = 0.0
 
-    def update(self, dt, hold, solids, no_go):
+    def update(self, dt, hold, solids, no_go, speed_mul=1.0):
         if self.sitting:
             # 수풀에 앉아 있으면 움직이지 않는다 — 발소리도 나지 않는다
             self.moving = False
@@ -210,7 +221,7 @@ class Player:
         dy = (1 if "down" in hold else 0) - (1 if "up" in hold else 0)
         self.moving = bool(dx or dy)
         self.sprinting = self.moving and "sprint" in hold
-        speed = RUN_SPEED if self.sprinting else WALK_SPEED
+        speed = (RUN_SPEED if self.sprinting else WALK_SPEED) * speed_mul
         self.speed = speed
         ox, oy = self.x, self.y
         if self.moving:
@@ -426,6 +437,22 @@ class Food:
         self.t = (index * 1.7) % 6.28
 
 
+class SnackBasket:
+    """맵에 놓인 작은 캔버스 간식 바구니 — 진짜 음식과 무관한 별도 자원."""
+
+    def __init__(self, x, y, index, left=SNACK_PER_BASKET):
+        self.x, self.y = float(x), float(y)
+        self.index = index
+        self.left = left
+
+    @property
+    def empty(self):
+        return self.left <= 0
+
+    def sprite(self):
+        return "prop_snack_basket_open.png" if self.empty else "prop_snack_basket.png"
+
+
 class Game:
     def __init__(self, seed=None):
         self.seed = seed            # 테스트에서 썩은 음식 배치를 고정할 수 있다
@@ -462,6 +489,14 @@ class Game:
         self.toast_kind = "good"
         self.rotten_found = set()
         self.prompt_food = None
+        # 배고픔 / 간식 — 맵을 옮겨도 유지되고 R 로만 초기화된다.
+        self.hunger = HUNGER_MAX
+        self.snacks = 0
+        self.bag_open = False
+        self.eat_lock = 0.0
+        self.emptied_baskets = set()
+        self.baskets = []
+        self.prompt_basket = None
         self.fish_rng = random.Random((self.seed or 0) + 991)
         self._assign_rotten()
         self.load_map(0)
@@ -502,6 +537,12 @@ class Game:
         self.no_go = [tuple(r) for r in d["no_go"]]
         self.foods = [Food(k, x, y, FOOD_BASE[i] + j)
                       for j, (k, x, y) in enumerate(d["foods"])]
+        # 간식 바구니는 맵 데이터에 따로 있다 — 비운 바구니는 다시 오지 않아도 비어 있다.
+        self.baskets = [SnackBasket(x, y, j,
+                                    left=0 if (i, j) in self.emptied_baskets
+                                    else SNACK_PER_BASKET)
+                        for j, (x, y) in enumerate(d.get("snack_baskets", []))]
+        self.prompt_basket = None
         self.campers = [Camper(c) for c in d["campers"]]
         self.player = Player(*d["player"])
         self.door = d.get("tent_door")
@@ -579,6 +620,9 @@ class Game:
         food = Food(k, fx, fy, idx)
         food.collected = idx in self.collected
         self.foods = [food]
+        # 텐트 안에는 간식 바구니가 없다 (배고픔 상태는 그대로 유지).
+        self.baskets = []
+        self.prompt_basket = None
         self.campers = [Camper(c) for c in t["campers"]]
         self.player = Player(*t["player"])
         self.door = t["door"]
@@ -645,6 +689,9 @@ class Game:
         self.solids, self.no_go = [], []
         self.campers = []
         self.foods = []
+        # 호숫가 배 위에는 간식 바구니가 없다.
+        self.baskets = []
+        self.prompt_basket = None
         self.door = None
         self.prompt_food = None
         self.prompt_door = False
@@ -891,6 +938,18 @@ class Game:
         if self.door_lock > 0:
             self.door_lock = max(0.0, self.door_lock - dt)
 
+        # 배고픔은 배 위에서도 계속 줄어든다. 게임 오버는 없다.
+        self.hunger = max(0.0, self.hunger - HUNGER_DRAIN * dt)
+        if self.eat_lock > 0:
+            self.eat_lock = max(0.0, self.eat_lock - dt)
+        # 먹는 0.4초 동안에는 조작을 막는다 (Tab 은 그대로 반응).
+        hold = set() if self.eat_lock > 0 else set(hold)
+
+        if "bag" in press:
+            self.bag_open = not self.bag_open
+        if "eat" in press:
+            self.eat_snack()
+
         # Q: 낚싯배 타기 / 부두 복귀 / 원래 부두에서 하선
         if "boat" in press:
             if self.boat_mode == "fishing":
@@ -926,7 +985,8 @@ class Game:
             elif self.bush_at(self.player.x, self.player.y) is not None:
                 self.player.sitting = True
 
-        self.player.update(dt, hold, self.solids, self.no_go)
+        self.player.update(dt, hold, self.solids, self.no_go,
+                           speed_mul=self.hunger_speed())
 
         self.update_campers(dt)
 
@@ -980,6 +1040,8 @@ class Game:
             return
 
         self.prompt_food = self.nearest_food(78)
+        self.prompt_basket = (None if self.in_tent or self.boat_mode is not None
+                              else self.nearest_basket())
         if "collect" in press:
             if self.prompt_exit:
                 self.use_exit()
@@ -994,6 +1056,9 @@ class Game:
                 elif self.chaser is None:
                     self.enter_tent()
                 return
+            elif self.prompt_basket is not None:
+                self.take_snack(self.prompt_basket)
+                self.prompt_basket = None
 
     def _collect(self, f):
         f.collected = True
@@ -1030,6 +1095,52 @@ class Game:
             self.state = "win"
         else:
             self.goto_next_map()
+
+    # ---------------------------------------------------------- 배고픔 / 간식
+    def hunger_speed(self):
+        """배고픔 60 이상은 1배, 0이 되어도 0.25배까지 느려진다."""
+        h = max(0.0, min(HUNGER_MAX, self.hunger))
+        if h >= HUNGER_SLOW_AT:
+            return 1.0
+        return HUNGER_MIN_SPEED + (1.0 - HUNGER_MIN_SPEED) * h / HUNGER_SLOW_AT
+
+    def hunger_darkness(self):
+        """배고픔 60 아래부터 가장자리 어두움이 커진다."""
+        h = max(0.0, min(HUNGER_MAX, self.hunger))
+        if h >= HUNGER_SLOW_AT:
+            return 0.0
+        return 0.82 * (1.0 - h / HUNGER_SLOW_AT)
+
+    def nearest_basket(self, r=BASKET_RADIUS):
+        best, bd = None, r
+        for b in self.baskets:
+            if b.empty:
+                continue
+            d = math.hypot(b.x - self.player.x, b.y - self.player.y)
+            if d < bd:
+                best, bd = b, d
+        return best
+
+    def take_snack(self, basket):
+        n = min(SNACK_PER_BASKET, basket.left)
+        basket.left -= n
+        if basket.empty:
+            self.emptied_baskets.add((self.map_index, basket.index))
+        self.snacks += n
+        self.toast_kind = "snack"
+        self.toast_timer = 1.1
+
+    def eat_snack(self):
+        if self.snacks <= 0 or self.eat_lock > 0:
+            return False
+        self.snacks -= 1
+        self.hunger = min(HUNGER_MAX, self.hunger + SNACK_RESTORE)
+        self.eat_lock = EAT_LOCK
+        noise = EAT_NOISE * (NOISE_BUSH if self.hidden else 1.0)
+        self.gauge = min(100.0, self.gauge + noise)
+        self.toast_kind = "eat"
+        self.toast_timer = 1.1
+        return True
 
     # ---------------------------------------------------------- 발소리 / 감지
     def update_noise(self, dt):
@@ -1219,6 +1330,8 @@ class Game:
         for f in self.visible_foods():
             if not f.collected:
                 items.append((f.y + 0.1, "food", f))
+        for b in self.baskets:
+            items.append((b.y + 0.05, "basket", b))
         for c in self.campers:
             items.append((c.y, "camper", c))
         items.append((self.player.y, "player", self.player))
@@ -1229,6 +1342,8 @@ class Game:
                 self.draw_prop(obj)
             elif kind == "food":
                 self.draw_food(obj)
+            elif kind == "basket":
+                self.draw_basket(obj)
             elif kind == "camper":
                 self.draw_camper(obj)
             else:
@@ -1300,6 +1415,17 @@ class Game:
         self.img("shadow.png").draw(f.x, H - f.y + 20, 52, 18)
         self.img("food_%s.png" % f.kind).draw(f.x, H - f.y + bob, 54, 54)
 
+    def draw_basket(self, b):
+        """캔버스 간식 바구니 — 진짜 음식의 호박색 발광보다 훨씬 약하게 표시."""
+        self.img("shadow.png").draw(b.x, H - b.y + 6, 62, 20)
+        im = self.img(b.sprite())
+        im.draw(b.x, H - b.y + im.h / 2 - 3, im.w, im.h)
+        if not b.empty:
+            g = self.img("glow_food.png")
+            g.opacify(0.16 + 0.05 * math.sin(self.time * 2.6 + b.index))
+            g.draw(b.x, H - b.y + 8, 74, 74)
+            g.opacify(1.0)
+
     def draw_camper(self, c):
         self.img("shadow.png").draw(c.x, H - c.y + 3, 44, 18)
         if c.sleeping:
@@ -1359,6 +1485,14 @@ class Game:
         # 월드 위 어두운 비네트
         self.img("vignette_dark.png").draw(W / 2, H / 2, W, H)
 
+        # 배고픔이 낮으면 가장자리가 더 깊게 어두워진다 (감지 게이지와 별개).
+        dark = self.hunger_darkness()
+        if dark > 0.002:
+            v = self.img("vignette_hunger.png")
+            v.opacify(dark)
+            v.draw(W / 2, H / 2, W, H)
+            v.opacify(1.0)
+
         if self.gauge > 55:
             r = self.img("vignette_red.png")
             r.opacify(min(1.0, (self.gauge - 55) / 45.0))
@@ -1404,6 +1538,20 @@ class Game:
         real = max(0, min(len(REAL_INDICES), self.real_eaten()))
         self.img("hud_real_%d.png" % real).draw_to_origin(400, 600)
 
+        # 간식 개수 — 15칸 음식 HUD 와 별도 카운터
+        self.img("hud_bag_count_%d.png" % max(0, min(9, self.snacks))).draw_to_origin(24, 600)
+
+        # 배고픔 게이지
+        self.img("hud_hunger.png").draw_to_origin(1000, 616)
+        self.img("hud_hunger_bg.png").draw_to_origin(1000, 588)
+        hfrac = max(0.0, min(1.0, self.hunger / HUNGER_MAX))
+        if hfrac > 0.002:
+            if self.hunger < HUNGER_SLOW_AT:
+                col = (214, 92, 66)
+            else:
+                col = (116, 186, 122)
+            draw_rectangle(1004, 592, 1004 + 232 * hfrac, 608, *col, filled=True)
+
         # 감지 게이지
         self.draw_fishing_hud()
 
@@ -1429,7 +1577,8 @@ class Game:
             t = self.toast_timer / 1.1
             names = {"bad": "hud_toast_bad.png", "boat": "hud_toast_boat.png",
                      "fish_miss": "hud_toast_miss.png", "big": "hud_toast_big.png",
-                     "spot": "hud_toast_spot.png", "exit": "hud_toast_exit.png"}
+                     "spot": "hud_toast_spot.png", "exit": "hud_toast_exit.png",
+                     "snack": "hud_toast_snack.png", "eat": "hud_toast_eat.png"}
             name = names.get(self.toast_kind, "hud_toast.png")
             self.img(name).draw(W / 2, H - 128 + (1 - t) * 14, 150, 44)
 
@@ -1443,6 +1592,10 @@ class Game:
             im = self.img(name)
             im.draw((x0 + x1) / 2, H - (y0 + y1) / 2 - 44,
                     im.w, im.h)
+        elif self.state == "playing" and self.prompt_basket is not None:
+            im = self.img("hud_prompt_snack.png")
+            b = self.prompt_basket
+            im.draw(b.x, H - b.y + 58, im.w, im.h)
         elif self.state == "playing" and self.hidden_bush is not None:
             name = "hud_prompt_stand.png" if self.player.sitting else "hud_prompt_sit.png"
             im = self.img(name)
@@ -1477,6 +1630,20 @@ class Game:
                 fi = self.img("hud_prompt_release.png" if self.fish_hooked
                               else "hud_prompt_fish.png")
                 fi.draw(self.player.x, H - self.player.y + 92, fi.w, fi.h)
+
+        # Tab — 간식 가방 패널 (작은 천 주머니 UI, 월드 가상에 띄운다)
+        if self.state == "playing" and self.bag_open:
+            self.img("hud_bag.png").draw(W / 2, H / 2, 420, 230)
+            bx0 = W / 2 - 160
+            self.img("hud_bag_count_%d.png" % max(0, min(9, self.snacks))).draw_to_origin(
+                bx0, H / 2 + 29)
+            draw_rectangle(bx0, H / 2 - 9, bx0 + 320, H / 2 + 15,
+                           8, 16, 12, filled=True)
+            hfrac = max(0.0, min(1.0, self.hunger / HUNGER_MAX))
+            if hfrac > 0.002:
+                col = (214, 92, 66) if self.hunger < HUNGER_SLOW_AT else (116, 186, 122)
+                draw_rectangle(bx0 + 4, H / 2 - 5, bx0 + 4 + 312 * hfrac, H / 2 + 11,
+                               *col, filled=True)
 
         # 상태 오버레이
         if self.state == "intro":
