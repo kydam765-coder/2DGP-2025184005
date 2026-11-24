@@ -428,54 +428,6 @@ def crate():
     return down(im, w, h)
 
 
-def picnic_basket(open_=False):
-    """캠핑장에 놓인 피크닉 바구니 — 짜인 라탄 손잡이와 체크 무늬 보자기."""
-    w, h, ss = 78, 62, 3
-    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
-    p = Pen(im, ss)
-    if open_:
-        # 뒤로 젖혀진 뚜껑 — 안쪽 체크 무늬가 보인다
-        p.rr((12, 6, 66, 20), 4, "#B98A4E")
-        p.rr((14, 8, 64, 17), 3, "#D6AE70")
-        for x in range(16, 64, 10):
-            p.pline([(x, 8), (x, 17)], "#8A6337", 1)
-        p.arc((22, 2, 56, 30), 190, 350, "#8A6337", 3)
-        p.ell((14, 20, 64, 32), "#3E2C1E")
-        p.ell((18, 22, 60, 30), "#C0563C")
-        for x in (24, 36, 48):
-            p.rr((x, 22, x + 5, 30), 1, "#F2E4C8")
-    else:
-        # 단단한 아치 손잡이
-        p.arc((18, 4, 60, 34), 180, 360, "#7A5630", 5)
-        p.arc((21, 7, 57, 31), 180, 360, "#C69A5C", 3)
-        # 체크 보자기가 살짝 삐져나온다
-        p.rr((14, 18, 64, 27), 3, "#F2E4C8")
-        for x in (20, 32, 44, 56):
-            p.rr((x, 18, x + 6, 27), 1, "#C0563C")
-    # 라탄 몸체 (아래로 살짝 좁아지는 사다리꼴)
-    p.poly([(10, 25), (68, 25), (61, 56), (17, 56)], "#B98A4E")
-    p.pline([(10, 25), (17, 56)], "#7A5630", 2)
-    p.pline([(68, 25), (61, 56)], "#7A5630", 2)
-    p.pline([(17, 56), (61, 56)], "#7A5630", 2)
-    # 짜임 — 가로 띠와 엇갈리는 세로 올
-    for y in (31, 39, 47):
-        p.pline([(12, y), (66, y)], "#8A6337", 2)
-        p.pline([(12, y + 3), (66, y + 3)], "#D6AE70", 1)
-    for y, xs in ((28, (18, 30, 42, 54, 64)),
-                  (36, (22, 34, 46, 58)),
-                  (44, (20, 32, 44, 56))):
-        for x in xs:
-            p.pline([(x, y), (x - 2, y + 7)], "#D6AE70", 1)
-    # 입구 테두리와 가죽 끈
-    p.rr((8, 21, 70, 29), 4, "#8A6337")
-    p.rr((8, 21, 70, 25), 3, "#D6AE70")
-    p.rr((20, 24, 26, 56), 2, "#6B4E32")
-    p.rr((52, 24, 58, 56), 2, "#6B4E32")
-    p.rr((34, 20, 44, 29), 2, "#E9A63F")
-    p.rr((37, 22, 41, 27), 1, "#6B4E32")
-    return down(im, w, h)
-
-
 def speaker():
     w, h, ss = 56, 96, 3
     im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
@@ -713,8 +665,6 @@ def build_all():
     save(booth("#B97C22"), "prop_booth_amber.png")
     save(lantern(), "prop_lantern.png")
     save(crate(), "prop_crate.png")
-    save(picnic_basket(False), "prop_picnic_basket.png")
-    save(picnic_basket(True), "prop_picnic_basket_open.png")
     save(speaker(), "prop_speaker.png")
     save(bench(), "prop_bench.png")
     save(grill(), "prop_grill.png")
