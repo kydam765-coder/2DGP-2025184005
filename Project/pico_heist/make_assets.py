@@ -352,6 +352,54 @@ def bg_tent():
     return im.resize((W, H), Image.LANCZOS)
 
 
+def bg_backstage():
+    """무대 뒤 조리 부스 — 커튼, 전등 트러스, 조리대와 김 나는 냄비."""
+    ss = 2
+    im = Image.new("RGBA", (W * ss, H * ss), (38, 30, 46, 255))
+    d = ImageDraw.Draw(im)
+    # 무대 바닥
+    d.rectangle([0, 150 * ss, W * ss, H * ss], fill=(62, 48, 44, 255))
+    for y in range(160, H, 28):
+        d.line([0, y * ss, W * ss, y * ss], fill=(84, 64, 56, 90), width=2 * ss)
+    # 접힌 커튼
+    for i in range(16):
+        x0 = i * W / 16
+        base = 58 if i % 2 else 46
+        d.rectangle([x0 * ss, 0, (x0 + W / 16) * ss, 150 * ss],
+                    fill=(base, base - 14, base - 26, 255))
+        d.line([x0 * ss, 0, x0 * ss, 150 * ss], fill=(26, 20, 30, 190), width=3 * ss)
+    # 전등 트러스
+    d.rectangle([0, 96 * ss, W * ss, 108 * ss], fill=(28, 24, 30, 255))
+    for x in (180, 420, 660, 900, 1140):
+        d.ellipse([(x - 16) * ss, 108 * ss, (x + 16) * ss, 132 * ss],
+                  fill=(255, 214, 140, 230))
+        d.ellipse([(x - 10) * ss, 110 * ss, (x + 10) * ss, 128 * ss],
+                  fill=(255, 240, 200, 255))
+    # 조리대와 냄비
+    d.rounded_rectangle([120 * ss, 250 * ss, 1160 * ss, 300 * ss], 12 * ss,
+                        fill=(96, 70, 52, 255))
+    d.rounded_rectangle([136 * ss, 258 * ss, 1144 * ss, 292 * ss], 8 * ss,
+                        fill=(132, 98, 72, 255))
+    d.ellipse([760 * ss, 236 * ss, 880 * ss, 276 * ss], fill=(48, 42, 46, 255))
+    d.ellipse([770 * ss, 240 * ss, 870 * ss, 270 * ss], fill=(196, 112, 56, 255))
+    d.ellipse([780 * ss, 244 * ss, 860 * ss, 264 * ss], fill=(232, 164, 82, 255))
+    d.line([820 * ss, 246 * ss, 850 * ss, 210 * ss],
+           fill=(210, 214, 206, 230), width=5 * ss)
+    for x, y, r in ((800, 220, 14), (830, 198, 18), (856, 176, 12)):
+        d.ellipse([(x - r) * ss, (y - r) * ss, (x + r) * ss, (y + r) * ss],
+                  fill=(236, 238, 226, 34))
+    # 지퍼 출입구 (아래 가운데)
+    d.rectangle([594 * ss, 656 * ss, 686 * ss, H * ss], fill=(26, 20, 28, 255))
+    d.polygon([(594 * ss, 656 * ss), (640 * ss, 620 * ss), (686 * ss, 656 * ss)],
+              fill=(40, 30, 40, 255))
+    for x in range(598, 686, 7):
+        d.line([x * ss, 660 * ss, x * ss, H * ss], fill=(74, 60, 74, 190), width=2 * ss)
+    im.alpha_composite(radial(W * ss, H * ss, (255, 206, 138), 46, 0, 0.5, 0.32))
+    grain(im, (30, 22, 32), 700, size=(1, 3), alpha=(12, 42), ss=ss)
+    vignette(im, (12, 8, 16), 170)
+    return im.resize((W, H), Image.LANCZOS)
+
+
 def zzz():
     """자는 사람 위로 떠오르는 Z."""
     im = Image.new("RGBA", (104, 96), (0, 0, 0, 0))
@@ -800,6 +848,7 @@ def build_all():
     bg_lake().convert("RGB").save(os.path.join(OUT, "bg_lake.png"))
     bg_festival().convert("RGB").save(os.path.join(OUT, "bg_festival.png"))
     bg_tent().convert("RGB").save(os.path.join(OUT, "bg_tent.png"))
+    bg_backstage().convert("RGB").save(os.path.join(OUT, "bg_backstage.png"))
     bg_lake_open().convert("RGB").save(os.path.join(OUT, "bg_lake_open.png"))
 
     for name, col in (("day", (255, 246, 214)), ("sunset", (255, 190, 120)),
@@ -837,6 +886,7 @@ def build_all():
     save(zzz(), "fx_zzz.png")
     save(door_marker(), "fx_door.png")
     save(prompt_label("텐트 안으로", 168), "hud_prompt_door.png")
+    save(prompt_label("조리 부스 안으로", 210), "hud_prompt_stall.png")
     save(prompt_label("밖으로 나가기", 176), "hud_prompt_out.png")
     save(alert_mark(), "mark_alert.png")
 
@@ -872,10 +922,12 @@ def build_all():
              ("야간 축제 캠핑장", "밤  ·  MAP 03", (238, 200, 120)),
              ("텐트 안", "숲속  ·  자는 사람이 있다", (206, 178, 120)),
              ("텐트 안", "호숫가  ·  자는 사람이 있다", (206, 178, 120)),
-             ("호숫가 낚시배", "호수  ·  E 홀드로 낚시", (150, 200, 206))]
+             ("호숫가 낚시배", "호수  ·  E 홀드로 낚시", (150, 200, 206)),
+             ("무대 뒤 조리 부스", "축제  ·  요리사가 냄비를 젓는다", (238, 200, 120))]
     for i, (nm, sub, accent) in enumerate(names):
         fn = (f"label_map{i}.png" if i < 3 else
-              "label_lake.png" if i >= 5 else f"label_tent{i - 3}.png")
+              "label_lake.png" if i == 5 else
+              "label_backstage.png" if i == 6 else f"label_tent{i - 3}.png")
         save(map_label(nm, sub, accent), fn)
 
     sets = [("숲속 캠핑장", "한낮  —  햇빛 아래, 사람은 두 명"),
@@ -886,7 +938,7 @@ def build_all():
                 ["chicken", "cake", "soda", "berry", "soup"]]
     tips = ["야외 정상 2개 + 텐트 음식 1개를 모아 다음 캠핑장으로",
             "야외 정상 2개 + Q로 낚싯배를 타고 생선을 낚아야 한다",
-            "야외 정상 2개(마지막 음식 포함)를 모아 다음 캠핑장으로"]
+            "야외 정상 1개 + 조리 부스의 수프를 모아 다음 캠핑장으로"]
     for i, (nm, tm) in enumerate(sets):
         ims = [Image.open(os.path.join(OUT, f"food_{k}.png")).convert("RGBA")
                for k in food_set[i]]

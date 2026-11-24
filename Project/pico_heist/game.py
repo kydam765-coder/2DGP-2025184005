@@ -59,9 +59,11 @@ FISH_ANIM = 1.2         # 물고기가 떠오르는 연출 시간
 FISH_NOISE = 26.0       # 낚시 성공 시 발소리 대신 퍼지는 소음
 
 # ---- 썩은 음식
-GOOD_OUTDOOR = 2        # 야외에서 카운트되는 음식은 맵마다 최대 2개
-#       1·2번 맵: 야외 4개 중 2개 썩음 + 텐트 음식 1개(항상 정상·필수) = 정상 3개
-#       3번 맵:   야외 5개 중 3개 썩음 = 정상 2개
+GOOD_OUTDOOR = 2        # 1·2번 맵의 야외 정상 음식 수
+GOOD_OUTDOOR_BY_MAP = (2, 2, 1)
+#       1번 맵: 야외 4개 중 2개 썩음 + 텐트 음식 1개(정상·필수) = 정상 3개
+#       2번 맵: 야외 4개(생선 제외) 중 2개 썩음 + 낚시 생선 1개 = 정상 3개
+#       3번 맵: 야외 4개 중 3개 썩음 + 조리 부스 수프 1개 = 정상 2개
 
 # ---- 추격
 CHASE_SPEED = 240.0     # 달리기(320)보다 느리다 → 달리면 따돌릴 수 있다
@@ -81,6 +83,8 @@ def _food_layout():
         kinds = [k for (k, _, _) in m["foods"]]
         if m.get("tent"):
             kinds.append(m["tent"]["food"][0])
+        if m.get("backstage"):
+            kinds.append(m["backstage"]["food"][0])
         order.extend(kinds)
         n += len(kinds)
     return order, base
@@ -255,6 +259,7 @@ class Camper:
         self.variant = data.get("variant", 0)
         self.sit = data.get("sit", False)
         self.angler = data.get("angler", False)   # 호숫가에 앉아 낚시하는 사람
+        self.cook = data.get("cook", False)       # 조리 부스에서 냄비를 젓는 사람
         self.scan = data.get("scan", 0.55)
         self.alarm = 0.0
         self.t = 0.0
@@ -343,6 +348,11 @@ class Camper:
             self.frame = int(self.t * 0.9) % 2      # 천천히 숨쉬는 느낌
             return
         if self.mode != "patrol":
+            return
+        if self.cook:
+            # 냄비를 젓는 2.5초 / 방 안을 보는 2.5초를 번갈다.
+            self.angle = self.base if (self.t % 5.0) < 2.5 else self.base + math.pi
+            self.frame = int(self.t * 2) % 2
             return
         if self.sit or len(self.path) == 1:
             self.angle = self.base + math.sin(self.t * 0.9) * (self.scan * 0.5 if self.sit else self.scan)
@@ -469,12 +479,12 @@ class Game:
         self.timer = 2.2
 
     def _assign_rotten(self):
-        """야외에서 카운트되는 음식은 맵마다 최대 GOOD_OUTDOOR 개.
+        """맵마다 야외 정상 음식 수를 고정하고 나머지를 썩힌다.
 
-        1·2번 맵: 야외 4개 중 2개를 썩혀 정상 2개만 남기고,
-                  텐트 안 음식(마지막·진짜 음식)은 절대 썩히지 않는다.
-                  → 야외만 다 먹어도 텐트 음식이 남아 있으므로 반드시 들어가야 맵 클리어.
-        3번 맵:   야외 5개 중 3개를 썩혀 정상 2개(그중 하나가 진짜 음식)만 남긴다.
+        1번 맵: 야외 4개 중 2개 정상 + 텐트 마시멜로(진짜 음식).
+        2번 맵: 야외 4개(생선 제외) 중 2개 정상 + 낚시 생선(진짜 음식).
+        3번 맵: 야외 4개 중 1개 정상 + 조리 부스 수프(진짜 음식).
+        서브 맵의 진짜 음식은 절대 썩히지 않는다.
         """
         rng = random.Random(self.seed)
         self.rotten = set()
@@ -483,9 +493,8 @@ class Game:
             outdoor = range(base, base + len(m["foods"]))
             # 생선은 호수에서 낚시로 얻으므로 야외 음식 계산에서 제외한다.
             candidates = [j for j in outdoor if j != FISH_INDEX]
-            real_outdoor = REAL_INDICES[i] in candidates
             pool = [j for j in candidates if j != REAL_INDICES[i]]
-            target = max(0, GOOD_OUTDOOR - (1 if real_outdoor else 0))
+            target = GOOD_OUTDOOR_BY_MAP[i]
             n_rotten = max(0, len(pool) - target)
             self.rotten.update(rng.sample(pool, min(n_rotten, len(pool))))
 
@@ -495,6 +504,8 @@ class Game:
         self.scene = d
         self.in_tent = False
         self.tent = None
+        self.in_backstage = False
+        self.backstage = None
         self.props = [Prop(n, x, y, s) for (n, x, y, s) in d["props"]]
         self.solids = [p.solid for p in self.props if p.solid]
         self.covers = [p.cover for p in self.props if p.cover]
@@ -504,7 +515,7 @@ class Game:
                       for j, (k, x, y) in enumerate(d["foods"])]
         self.campers = [Camper(c) for c in d["campers"]]
         self.player = Player(*d["player"])
-        self.door = d.get("tent_door")
+        self.door = d.get("tent_door") or d.get("backstage_door")
         self.gauge = 0.0
         self.prompt_food = None
         self.prompt_door = False
@@ -605,6 +616,60 @@ class Game:
         self.door_lock = DOOR_LOCK
         if self.map_complete():
             self._finish_map()      # 자동 전환 대신 출구를 연다
+
+    # ---------------------------------------------------------- 조리 부스 출입
+    def backstage_food_index(self, i=None):
+        if i is None:
+            # self.map 은 항상 MAPS 의 원소다. 도구에서 load_map() 만 호출해도
+            # map_index 가 안 바뀔 수 있으므로 현재 맵에서 인덱스를 찾는다.
+            i = next((k for k, m in enumerate(MAPS) if m is self.map),
+                     self.map_index)
+        b = MAPS[i].get("backstage")
+        if not b:
+            return None
+        return FOOD_BASE[i] + len(MAPS[i]["foods"])
+
+    def enter_backstage(self):
+        b = self.map["backstage"]
+        self.in_backstage = True
+        self.backstage = b
+        self.scene = b
+        self.props = [Prop(n, x, y, s) for (n, x, y, s) in b["props"]]
+        self.solids = [p.solid for p in self.props if p.solid]
+        self.covers = [p.cover for p in self.props if p.cover]
+        self.hides = [p for p in self.props if p.hide]
+        self.no_go = [tuple(r) for r in b["no_go"]]
+        k, fx, fy = b["food"]
+        idx = self.backstage_food_index()
+        food = Food(k, fx, fy, idx)
+        food.collected = idx in self.collected
+        self.foods = [food]
+        self.campers = [Camper(c) for c in b["campers"]]
+        self.player = Player(*b["player"])
+        self.door = b["door"]
+        self.gauge = 0.0
+        self.prompt_food = None
+        self.prompt_door = False
+        self.door_lock = DOOR_LOCK
+        self.hidden = False
+        self.hidden_bush = None
+        self.chaser = None
+        self.noise = 0.0
+        self.step_acc = 0.0
+
+    def exit_backstage(self):
+        i = self.map_index
+        self.load_map(i)
+        for f in self.foods:
+            if f.index in self.collected:
+                f.collected = True
+        ex, ey = self.map["backstage_exit"]
+        self.player.x, self.player.y = float(ex), float(ey)
+        self.player.dir = "down"
+        self.state = "playing"
+        self.door_lock = DOOR_LOCK
+        if self.map_complete():
+            self._finish_map()      # 수프를 들고 나오는 순간 출구를 연다
 
     # ---------------------------------------------------------- 낚싯배 / 낚시
     def visible_foods(self):
@@ -942,7 +1007,7 @@ class Game:
         # 소리를 들은 사람은 걸음을 멈추고 고개를 돌린다
         for c in self.campers:
             c.heard = False
-            if c.mode != "patrol" or c.sleeping:
+            if c.mode != "patrol" or c.sleeping or c.cook:
                 continue
             if c.hears(self.player, self.noise):
                 c.heard = True
@@ -972,11 +1037,15 @@ class Game:
         ex = self.map.get("exit")
         self.prompt_exit = (self.exit_open and ex is not None
                             and self.boat_mode is None and not self.in_tent
+                            and not self.in_backstage
                             and in_rect(self.player.x, self.player.y, ex["rect"]))
 
-        # 텐트 안에서 쫓기면 문으로 도망칠 수 있다
-        if self.in_tent and self.chaser is not None and self.prompt_door:
-            self.exit_tent()
+        # 텐트·조리 부스 안에서 쫓기면 문으로 도망칠 수 있다
+        if (self.in_tent or self.in_backstage) and self.chaser is not None and self.prompt_door:
+            if self.in_tent:
+                self.exit_tent()
+            else:
+                self.exit_backstage()
             return
 
         self.prompt_food = self.nearest_food(78)
@@ -991,8 +1060,13 @@ class Game:
             elif self.prompt_door:
                 if self.in_tent:
                     self.exit_tent()
+                elif self.in_backstage:
+                    self.exit_backstage()
                 elif self.chaser is None:
-                    self.enter_tent()
+                    if self.map.get("tent"):
+                        self.enter_tent()
+                    elif self.map.get("backstage"):
+                        self.enter_backstage()
                 return
 
     def _collect(self, f):
@@ -1003,14 +1077,14 @@ class Game:
             self.rotten_found.add(f.index)
             self.toast_kind = "bad"
             self.toast_timer = 1.1
-            if self.map_complete() and not self.in_tent:
+            if self.map_complete() and not self.in_tent and not self.in_backstage:
                 self._finish_map()
             return
         self.collected.add(f.index)
         self.gauge = min(100.0, self.gauge + PICKUP_NOISE)
         self.toast_kind = "good"
         self.toast_timer = 1.1
-        if self.map_complete() and not self.in_tent:
+        if self.map_complete() and not self.in_tent and not self.in_backstage:
             self._finish_map()
 
     def _finish_map(self):
@@ -1439,7 +1513,12 @@ class Game:
             self.img("hud_prompt.png").draw(f.x, H - f.y + 62, 112, 44)
         elif self.state == "playing" and self.prompt_door and self.door is not None:
             x0, y0, x1, y1 = self.door
-            name = "hud_prompt_out.png" if self.in_tent else "hud_prompt_door.png"
+            if self.in_tent or self.in_backstage:
+                name = "hud_prompt_out.png"
+            elif self.map.get("backstage"):
+                name = "hud_prompt_stall.png"
+            else:
+                name = "hud_prompt_door.png"
             im = self.img(name)
             im.draw((x0 + x1) / 2, H - (y0 + y1) / 2 - 44,
                     im.w, im.h)

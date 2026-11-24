@@ -3,7 +3,7 @@
 
     python main.py
 
-WASD 이동  ·  E 음식 줍기/배 위 낚시 홀드→초록 구간에서 떼기  ·  Q 낚싯배 타기·낚시터 하선  ·  X 수풀 앉기  ·  R 다시 시작  ·  ESC 종료
+WASD 이동  ·  E 음식 줍기/텐트·조리 부스 출입/배 위 낚시 홀드→초록 구간에서 떼기  ·  Q 낚싯배 타기·낚시터 하선  ·  X 수풀 앉기  ·  R 다시 시작  ·  ESC 종료
 """
 import pico2d
 from pico2d import (SDLK_a, SDLK_d, SDLK_e, SDLK_LEFT, SDLK_LSHIFT,
