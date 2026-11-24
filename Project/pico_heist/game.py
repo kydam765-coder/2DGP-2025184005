@@ -168,6 +168,18 @@ def in_rect(x, y, rect):
     return x0 <= x <= x1 and y0 <= y <= y1
 
 
+def path_markers(points, spacing=54.0):
+    """출구까지 이어지는 길 위의 표지 좌표를 일정 간격으로 뽑는다."""
+    out = []
+    for (x1, y1), (x2, y2) in zip(points, points[1:]):
+        d = math.hypot(x2 - x1, y2 - y1)
+        n = max(1, int(d // spacing))
+        for i in range(n + 1):
+            t = i / n
+            out.append((x1 + (x2 - x1) * t, y1 + (y2 - y1) * t))
+    return out
+
+
 # ---------------------------------------------------------------- entities
 class Player:
     RADIUS = 15
@@ -513,6 +525,9 @@ class Game:
         self.fish_cd = 0.0
         self.fish_anim = 0.0
         self.fish_miss = False
+        # 진짜 음식을 다 먹으면 출구가 열리고, 피코가 걸어가야 다음 맵으로 간다.
+        self.exit_open = False
+        self.prompt_exit = False
 
     # ---------------------------------------------------------- 텐트 출입
     def tent_food_index(self, i=None):
@@ -582,11 +597,7 @@ class Game:
         self.state = "playing"
         self.door_lock = DOOR_LOCK
         if self.map_complete():
-            if i >= len(MAPS) - 1:
-                self.state = "win"
-            else:
-                self.state = "map_clear"
-                self.timer = 1.7
+            self._finish_map()      # 자동 전환 대신 출구를 연다
 
     # ---------------------------------------------------------- 낚싯배 / 낚시
     def visible_foods(self):
@@ -667,8 +678,10 @@ class Game:
         self.toast_timer = 1.1
 
     def leave_boat(self):
-        """Q — 낚시 맵/항해 중이면 부두로 돌아온다."""
+        """Q — 낚시 맵/항해 중이면 부두로 돌아온다. 열린 출구는 그대로 유지."""
+        was_open = self.exit_open
         self.load_map(self.map_index)
+        self.exit_open = was_open
         bx, by = self.map["boat"]
         self.player.x, self.player.y = float(bx), float(by) - 72
         self.player.dir = "down"
@@ -934,6 +947,12 @@ class Game:
                             and math.hypot(bp[0] - self.player.x,
                                            bp[1] - self.player.y) < 82)
 
+        # 열린 출구 앞에 서 있는가 — 배/텐트 안에서는 사용할 수 없다
+        ex = self.map.get("exit")
+        self.prompt_exit = (self.exit_open and ex is not None
+                            and self.boat_mode is None and not self.in_tent
+                            and in_rect(self.player.x, self.player.y, ex["rect"]))
+
         # 텐트 안에서 쫓기면 문으로 도망칠 수 있다
         if self.in_tent and self.chaser is not None and self.prompt_door:
             self.exit_tent()
@@ -941,6 +960,9 @@ class Game:
 
         self.prompt_food = self.nearest_food(78)
         if "collect" in press:
+            if self.prompt_exit:
+                self.use_exit()
+                return
             if self.prompt_food is not None:
                 self._collect(self.prompt_food)
                 if self.state != "playing":
@@ -971,12 +993,22 @@ class Game:
             self._finish_map()
 
     def _finish_map(self):
-        # 마지막 맵의 진짜 음식까지 먹으면 진짜 음식 3개가 모두 모인 셈
+        """진짜 음식을 먹어도 바로 넘어가지 않고 출구를 연다."""
+        if self.exit_open or self.state != "playing":
+            return
+        self.exit_open = True
+        self.prompt_exit = False
+        self.toast_kind = "exit"
+        self.toast_timer = 1.1
+
+    def use_exit(self):
+        """출구 게이트에서 E — 피코가 직접 걸어온 뒤에만 다음 맵/완료로 간다."""
+        if not self.exit_open or not self.prompt_exit:
+            return
         if self.map_index >= len(MAPS) - 1:
             self.state = "win"
         else:
-            self.state = "map_clear"
-            self.timer = 1.7
+            self.goto_next_map()
 
     # ---------------------------------------------------------- 발소리 / 감지
     def update_noise(self, dt):
@@ -1109,6 +1141,19 @@ class Game:
             lx, ly = self.lake.get("landing", (640, 676))
             pier = self.img("prop_pier.png")
             pier.draw(lx, H - ly + pier.h / 2 - 10, pier.w, pier.h)
+
+        # 출구가 열리면 길 표지를 따라 게이트까지 안내한다.
+        ex = self.map.get("exit")
+        if self.exit_open and ex is not None and self.boat_mode is None and not self.in_tent:
+            marker = self.img("fx_exit_trail.png")
+            for mx, my in path_markers(ex["path"]):
+                marker.opacify(0.55 + 0.35 * math.sin(self.time * 3.2 + mx * 0.02))
+                marker.draw(mx, H - my + 8, 28, 22)
+            marker.opacify(1.0)
+            gx, gy = ex["gate"]
+            gate = self.img("fx_exit_win.png" if self.map_index == len(MAPS) - 1
+                            else "fx_exit_next.png")
+            gate.draw(gx, H - gy + gate.h / 2 - 10, gate.w, gate.h)
 
         # 조명 웅덩이 (밤)
         for p in self.props:
@@ -1361,7 +1406,7 @@ class Game:
             t = self.toast_timer / 1.1
             names = {"bad": "hud_toast_bad.png", "boat": "hud_toast_boat.png",
                      "fish_miss": "hud_toast_miss.png", "big": "hud_toast_big.png",
-                     "spot": "hud_toast_spot.png"}
+                     "spot": "hud_toast_spot.png", "exit": "hud_toast_exit.png"}
             name = names.get(self.toast_kind, "hud_toast.png")
             self.img(name).draw(W / 2, H - 128 + (1 - t) * 14, 150, 44)
 
@@ -1379,6 +1424,13 @@ class Game:
             name = "hud_prompt_stand.png" if self.player.sitting else "hud_prompt_sit.png"
             im = self.img(name)
             im.draw(self.player.x, H - self.player.y + 62, im.w, im.h)
+
+        # 출구 프롬프트 — 길을 따라 걸어온 뒤에만 뜬다
+        if self.state == "playing" and self.prompt_exit:
+            name = ("hud_prompt_win.png" if self.map_index == len(MAPS) - 1
+                    else "hud_prompt_next.png")
+            im = self.img(name)
+            im.draw(self.player.x, H - self.player.y + 100, im.w, im.h)
 
         # 낚싯배 프롬프트
         if self.state == "playing" and self.prompt_boat:

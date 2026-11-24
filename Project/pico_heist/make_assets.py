@@ -766,6 +766,29 @@ def pier():
     return im
 
 
+def exit_gate(label, accent=(122, 190, 118)):
+    """진짜 음식을 다 먹으면 열리는 출구 게이트."""
+    im = Image.new("RGBA", (150, 128), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([10, 34, 26, 128], 4, fill=(96, 62, 34, 255))
+    d.rounded_rectangle([124, 34, 140, 128], 4, fill=(96, 62, 34, 255))
+    d.rounded_rectangle([2, 10, 148, 48], 8, fill=(52, 38, 26, 245),
+                        outline=accent + (255,), width=3)
+    text(d, (75, 18), label, 20, CREAM + (255,), anchor="ma")
+    d.polygon([(60, 64), (90, 64), (75, 88)], fill=accent + (225,))
+    d.polygon([(60, 90), (90, 90), (75, 114)], fill=accent + (150,))
+    return im
+
+
+def exit_trail():
+    """출구까지 이어지는 발자국/화살표 표지."""
+    im = Image.new("RGBA", (28, 22), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.ellipse([2, 4, 26, 20], fill=(122, 190, 118, 150))
+    d.polygon([(10, 7), (20, 12), (10, 17)], fill=(250, 246, 236, 240))
+    return im
+
+
 # ---------------------------------------------------------------- build
 def build_all():
     os.makedirs(OUT, exist_ok=True)
@@ -835,6 +858,14 @@ def build_all():
     save(sign_post("호숫가 이동"), "sign_to_lake.png")
     save(sign_post("낚시터로 이동"), "sign_to_spot.png")
     save(pier(), "prop_pier.png")
+
+    # 걸어서 다음 맵으로 — 출구 게이트와 길 표지
+    save(exit_gate("다음 맵"), "fx_exit_next.png")
+    save(exit_gate("완료"), "fx_exit_win.png")
+    save(exit_trail(), "fx_exit_trail.png")
+    save(prompt_label("다음 맵으로", 168, "E"), "hud_prompt_next.png")
+    save(prompt_label("게임 완료", 160, "E"), "hud_prompt_win.png")
+    save(toast("출구가 열렸다!"), "hud_toast_exit.png")
 
     names = [("숲속 캠핑장", "한낮  ·  MAP 01", AMBER),
              ("호숫가 캠핑장", "해 질 녘  ·  MAP 02", (233, 141, 79)),
