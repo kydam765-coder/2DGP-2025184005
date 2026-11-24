@@ -47,6 +47,7 @@ DOOR_LOCK = 0.6         # 들어가고 나온 직후 출입구 재입력 방지
 BOAT_SPEED = 190.0      # WASD / 방향키로 배를 조종하는 속도
 BOAT_HULL_HALF_W = 98.0 # 배 그림 반폭 — 물 영역 좌우 끝에 배를 붙일 때 사용
 BOAT_HULL_HALF_H = 42.0 # 배 그림 반높이 — 물 영역 위아래 끝에 배를 붙일 때 사용
+BOARD_RADIUS = 150.0    # 부두 위에서 바로 옆 물에 매어진 배까지 탑승 가능 거리
 BOAT_HALF_W = 46.0      # 배 안에서 움직일 수 있는 가로 반폭
 BOAT_HALF_H = 17.0      # 배 안에서 움직일 수 있는 세로 반폭
 FISH_TIME = 1.5         # E 홀드로 게이지가 차는 시간
@@ -705,7 +706,9 @@ class Game:
         self.boat_mode = None
         self.lake = None
         self.scene = self.map
-        self.player.x, self.player.y = float(bx), float(by) - 72
+        # 배는 물에 그대로 두고, 사람은 부두 위 지정된 자리로 내린다.
+        sx, sy = self.map.get("dock_stand", (bx, by - 72))
+        self.player.x, self.player.y = float(sx), float(sy)
         self.player.dir = "down"
         self.player.sitting = False
         self.fishing = 0.0
@@ -902,7 +905,8 @@ class Game:
                 return
             bp = self.map.get("boat")
             if (self.map_index == LAKE_MAP and bp is not None
-                    and math.hypot(bp[0] - self.player.x, bp[1] - self.player.y) < 82):
+                    and math.hypot(bp[0] - self.player.x,
+                                   bp[1] - self.player.y) < BOARD_RADIUS):
                 self.board_boat()
                 return
 
@@ -958,11 +962,11 @@ class Game:
         self.prompt_door = (self.door is not None and self.door_lock <= 0
                             and in_rect(self.player.x, self.player.y, self.door))
 
-        # 부두 끝 낚싯배 앞인가
+        # 부두 바로 옆 물에 매어진 낚싯배 앞인가
         bp = self.map.get("boat")
         self.prompt_boat = (bp is not None and self.boat_mode is None
                             and math.hypot(bp[0] - self.player.x,
-                                           bp[1] - self.player.y) < 82)
+                                           bp[1] - self.player.y) < BOARD_RADIUS)
 
         # 열린 출구 앞에 서 있는가 — 배/텐트 안에서는 사용할 수 없다
         ex = self.map.get("exit")
