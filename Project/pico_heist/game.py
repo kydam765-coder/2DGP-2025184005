@@ -8,7 +8,7 @@ import math
 import os
 import random
 
-from pico2d import clear_canvas, draw_rectangle, load_image, load_wav
+from pico2d import clear_canvas, draw_line, draw_rectangle, load_image, load_wav
 
 from maps import MAPS
 
@@ -253,6 +253,7 @@ class Camper:
         self.wait = data.get("wait", 0.8)
         self.variant = data.get("variant", 0)
         self.sit = data.get("sit", False)
+        self.angler = data.get("angler", False)   # 호숫가에 앉아 낚시하는 사람
         self.scan = data.get("scan", 0.55)
         self.alarm = 0.0
         self.t = 0.0
@@ -1297,6 +1298,14 @@ class Game:
             z.draw(c.x - 26, H - c.y + 86 + 4 * math.sin(self.time * 1.4), 104, 96)
             z.opacify(1.0)
             return
+        if c.angler:
+            # 앉아서 호숫가를 바라보며 낚시 — 낚싯줄과 물결을 물 쪽으로 뻗는다.
+            tx, ty = c.x + 72, H - c.y - 112
+            draw_line(c.x + 10, H - c.y - 34, tx, ty, 236, 214, 170, 2)
+            ripple = self.img("fx_ring.png")
+            ripple.opacify(0.22 + 0.10 * math.sin(self.time * 4.0))
+            ripple.draw(tx, ty, 46, 14)
+            ripple.opacify(1.0)
         if c.sit:
             im = self.img("camper_sit.png")
         else:

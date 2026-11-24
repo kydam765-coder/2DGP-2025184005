@@ -137,8 +137,9 @@ MAPS = [
              "speed": 50, "wait": 0.9},
             {"variant": 3, "path": [(960, 435), (1180, 435), (1180, 360)],
              "speed": 44, "wait": 1.1},
-            {"variant": 1, "path": [(905, 685)], "speed": 0, "wait": 0,
-             "sit": True, "facing": (0, -1)},
+            # 부두 위가 아니라 호숫가 언덕에 앉아 물을 바라보며 낚시한다.
+            {"variant": 1, "path": [(740, 452)], "speed": 0, "wait": 0,
+             "sit": True, "facing": (0, 1), "scan": 0.18, "angler": True},
         ],
         # 생선을 낚아 부두로 돌아오면 출구가 열린다 — 왼쪽 언덕 끝까지 걸어간다.
         "exit": {
