@@ -922,9 +922,13 @@ class Game:
                 tx, ty = c.path[c.ret]
                 c.move_toward(tx, ty, dt, CHASE_SPEED * 0.5, self.solids)
                 if math.hypot(tx - c.x, ty - c.y) < 8:
+                    # 8px 안에서 멈추면 침낭(y=330)보다 위에 남을 수 있다.
+                    # 그대로 두면 y 정렬에서 침낭이 위에 그려져 자는 사람을 가린다.
+                    c.x, c.y = float(tx), float(ty)   # 침낭 위치에 정확히 눕힌다
                     c.mode = "patrol"
                     c.idx = (c.ret + 1) % len(c.path)
                     c.timer = c.wait
+                    c.frame = 0
                     if c.napper:
                         c.sleeping = True      # 다시 눕는다
                 continue
