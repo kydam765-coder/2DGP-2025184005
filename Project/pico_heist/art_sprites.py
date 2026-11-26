@@ -110,11 +110,12 @@ def pico(direction="down", frame=0):
     p.ell((40, 40 + bob, 54, 55 + bob), GREEN)
     p.ell((11, 49 + bob, 21, 57 + bob), FUR)
     p.ell((43, 49 + bob, 53, 57 + bob), FUR)
-    # ---- ears
-    p.ell((9, 20, 25, 38), FUR)
-    p.ell((39, 20, 55, 38), FUR)
-    p.ell((12, 24, 21, 33), FUR_D)
-    p.ell((43, 24, 52, 33), FUR_D)
+    # ---- ears (옆모습은 아래에서 귀 하나만 따로 그린다)
+    if direction not in ("left", "right"):
+        p.ell((9, 20, 25, 38), FUR)
+        p.ell((39, 20, 55, 38), FUR)
+        p.ell((12, 24, 21, 33), FUR_D)
+        p.ell((43, 24, 52, 33), FUR_D)
     # ---- head
     p.ell((14, 10, 50, 46), FUR)
     if direction == "up":
@@ -127,15 +128,12 @@ def pico(direction="down", frame=0):
     elif direction in ("left", "right"):
         # 옆모습은 왼쪽을 보고 그린 뒤, 오른쪽은 마지막에 전체를 반전한다.
         # (몸만 먼저 반전하면 얼굴이 여전히 왼쪽을 봐서 어색해진다.)
-        p.ell((8, 28, 30, 44), MUZZLE)          # 주둥이
-        p.ell((14, 31, 22, 39), INK)            # 코
-        p.pie((15, 10, 49, 44), 90, 270, MUZZLE)  # 얼굴 하단 밝게
-        p.ell((24, 22, 31, 30), INK)            # 눈
-        p.ell((25.5, 23.5, 28, 26), CREAM)      # 눈 하이라이트
-        p.pline([(16, 38), (21, 40)], FUR_D, 1.2)
+        p.ell((8, 29, 28, 43), MUZZLE)          # 주둥이 (옆으로 짧게)
+        p.ell((12, 32, 20, 39), INK)            # 코
+        p.pline([(15, 39), (21, 41)], FUR_D, 1.2)
         p.rr((30, 36 + bob, 50, 58 + bob), 7, "#3E5B44", "#2A4030", 1.0)  # 배낭
-        p.ell((34, 24, 48, 38), FUR)            # 반대쪽 귀
-        p.ell((37, 27, 45, 35), FUR_D)
+        p.ell((34, 16, 48, 34), FUR)            # 옆모습 귀 하나
+        p.ell((37, 20, 45, 30), FUR_D)
     else:  # down
         p.ell((22, 30, 42, 44), MUZZLE)
         p.ell((28, 31, 36, 37), INK)
@@ -152,6 +150,11 @@ def pico(direction="down", frame=0):
     p.rr((13, 25, 51, 31), 3.2, AMBER_D)
     p.ell((28, 1, 36, 9), CREAM)
     p.pie((18, 7, 30, 22), 200, 320, "#F2BC63")
+    if direction in ("left", "right"):
+        # 비니에 가리지 않도록 눈은 모자 위에 다시 그린다.
+        p = Pen(im, ss)
+        p.ell((25, 26, 32, 34), INK)
+        p.ell((26.5, 27.5, 29, 30), CREAM)
     if direction == "right":
         im = ImageOps.mirror(im)
     return down(im, w, h)
@@ -211,8 +214,9 @@ def camper(variant=0, direction="down", frame=0, sitting=False):
     p.ell((44, 53 + bob, 53, 60 + bob), skin)
     # head
     p.ell((15, 9, 49, 45), skin)
-    p.ell((12, 20, 19, 32), skin)   # 귀
-    p.ell((45, 20, 52, 32), skin)
+    if direction not in ("left", "right"):
+        p.ell((12, 20, 19, 32), skin)   # 정면·후면 귀 두 개
+        p.ell((45, 20, 52, 32), skin)
     if direction == "up":
         p.pie((14, 8, 50, 40), 180, 360, hair)
         p.rect((14, 10, 50, 26), hair)
@@ -222,10 +226,8 @@ def camper(variant=0, direction="down", frame=0, sitting=False):
         # 얼굴 앞(왼쪽)은 살색으로 남기고 머리는 위쪽과 뒤쪽만 덮는다.
         p.pie((14, 8, 50, 42), 180, 360, hair)   # 정수리·앞머리
         p.ell((34, 9, 50, 39), hair)             # 뒤통수
-        p.ell((31, 26, 40, 36), skin)            # 귀
-        p.ell((33, 28, 38, 33), "#D9A882")
-        p.ell((24, 24, 30, 31), INK)             # 눈
-        p.ell((25, 25, 27, 27.5), CREAM)
+        p.ell((30, 22, 39, 34), skin)            # 옆모습 귀 하나
+        p.ell((32, 25, 37, 31), "#D9A882")
         p.ell((16, 28, 22, 32), "#D9A882")       # 코
         p.pline([(22, 36), (28, 36)], "#8E5A48", 1.2)
     else:
@@ -241,6 +243,11 @@ def camper(variant=0, direction="down", frame=0, sitting=False):
         p.pie((15, 0, 49, 26), 180, 360, "#4C6B58")
         p.rr((13, 18, 51, 23), 2, "#3A5346")
         p.ell((28, 13, 36, 20), "#4C6B58")
+    if direction in ("left", "right"):
+        # 모자에 가리지 않도록 눈은 마지막에 다시 그린다.
+        p = Pen(im, ss)
+        p.ell((24, 26, 30, 33), INK)
+        p.ell((25, 27, 27, 29), CREAM)
     if direction == "right":
         im = ImageOps.mirror(im)
     return down(im, w, h)
