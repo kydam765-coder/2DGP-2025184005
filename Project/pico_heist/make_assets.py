@@ -108,6 +108,15 @@ def vignette(im, color=(8, 16, 12), a=120, inn=0.55):
     im.alpha_composite(layer)
 
 
+def dirt_road(d, pts, ss, shade=1.0):
+    """세 맵에서 공유하는 갈색 흙길 — 1번 맵의 팔레트/폭을 그대로 쓴다."""
+    pl = [(x * ss, y * ss) for (x, y) in pts]
+    for rgb, width in (((176, 150, 108), 88), ((195, 170, 126), 64),
+                       ((204, 181, 138), 34)):
+        col = tuple(min(255, int(c * shade)) for c in rgb) + (255,)
+        d.line(pl, fill=col, width=width * ss, joint="curve")
+
+
 def bg_forest():
     ss = 2
     im = Image.new("RGBA", (W * ss, H * ss), (108, 138, 88, 255))
@@ -119,13 +128,11 @@ def bg_forest():
         rx, ry = rnd.uniform(60, 200) * ss, rnd.uniform(40, 120) * ss
         col = rnd.choice([(96, 126, 80), (118, 148, 94), (102, 132, 84)])
         d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=col + (110,))
-    # 흙길
+    # 흙길 — 기존 길을 유지하되 끝을 오른쪽 아래 출구 게이트까지 이어서
+    # 2·3번 맵의 같은 흙길로 자연스럽게 넘어가게 한다.
     path = [(90, 610), (300, 560), (520, 590), (700, 520), (900, 470),
-            (1080, 400), (1210, 340)]
-    pl = [(x * ss, y * ss) for (x, y) in path]
-    d.line(pl, fill=(176, 150, 108, 255), width=88 * ss, joint="curve")
-    d.line(pl, fill=(195, 170, 126, 255), width=64 * ss, joint="curve")
-    d.line(pl, fill=(204, 181, 138, 255), width=34 * ss, joint="curve")
+            (1080, 400), (1150, 480), (1180, 640)]
+    dirt_road(d, path, ss)
     # 작은 갈림길
     side = [(520, 588), (470, 470), (500, 380)]
     d.line([(x * ss, y * ss) for (x, y) in side], fill=(180, 155, 112, 255),
@@ -164,6 +171,10 @@ def bg_lake():
         rx, ry = rnd.uniform(60, 180) * ss, rnd.uniform(30, 90) * ss
         col = rnd.choice([(134, 128, 84), (156, 148, 100), (122, 118, 80)])
         d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=col + (110,))
+    # 1번 맵에서 이어진 갈색 흙길 — 왼쪽에서 들어와 호숫가를 크게 돌아
+    # 왼쪽 출구 게이트(110,420)로 다시 나간다. (물보다 아래에 그려 해변에서 끊긴다)
+    dirt_road(d, [(0, 380), (260, 340), (560, 330), (820, 350), (960, 400),
+                  (960, 440), (780, 440), (520, 430), (280, 420), (110, 420)], ss)
     # 물
     d.rectangle([0, 468 * ss, W * ss, H * ss], fill=(58, 82, 96, 255))
     for i in range(46):
@@ -243,6 +254,12 @@ def bg_festival():
                         fill=(66, 65, 56, 255))
     grain(im, (40, 40, 34), 700, size=(1, 3), alpha=(20, 70), ss=ss)
     grain(im, (120, 112, 96), 200, size=(1, 2), alpha=(20, 50), ss=ss)
+    # 2번 맵에서 이어진 같은 갈색 흙길 — 광장을 한 바퀴 돌아
+    # 시작점이자 출구 게이트(110,660)로 돌아온다.
+    dirt_road(d, [(110, 660), (320, 650), (560, 640), (800, 620),
+                  (1020, 580), (1160, 520), (1160, 440), (980, 400),
+                  (760, 400), (540, 430), (340, 500), (200, 580),
+                  (110, 660)], ss, shade=0.88)
     # 축제 조명 웅덩이
     for (cx, cy, rx) in [(190, 250, 220), (480, 250, 220), (790, 250, 220),
                          (1090, 250, 200), (330, 600, 190), (980, 620, 190)]:

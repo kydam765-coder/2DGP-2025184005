@@ -1243,14 +1243,10 @@ class Game:
             im = self.img(sname)
             im.draw(sx, H - sy + im.h / 2, im.w, im.h)
 
-        # 출구가 열리면 길 표지를 따라 게이트까지 안내한다.
+        # 갈색 흙길은 세 맵 배경에 처음부터 깔려 있다. 음식을 다 모아도
+        # 새로운 길이 열리는 연출은 없고, 게이트 표지만 나타난다.
         ex = self.map.get("exit")
         if self.exit_open and ex is not None and self.boat_mode is None and not self.in_tent:
-            marker = self.img("fx_exit_trail.png")
-            for mx, my in path_markers(ex["path"]):
-                marker.opacify(0.55 + 0.35 * math.sin(self.time * 3.2 + mx * 0.02))
-                marker.draw(mx, H - my + 8, 28, 22)
-            marker.opacify(1.0)
             gx, gy = ex["gate"]
             gate = self.img("fx_exit_win.png" if self.map_index == len(MAPS) - 1
                             else "fx_exit_next.png")
