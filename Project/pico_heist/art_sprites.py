@@ -125,10 +125,8 @@ def pico(direction="down", frame=0):
         p.pline([(20, 40 + bob), (20, 52 + bob)], "#2A4030", 1.4)
         p.pline([(44, 40 + bob), (44, 52 + bob)], "#2A4030", 1.4)
     elif direction in ("left", "right"):
-        # 옆모습
-        if direction == "right":
-            im = ImageOps.mirror(im)
-            p = Pen(im, ss)
+        # 옆모습은 왼쪽을 보고 그린 뒤, 오른쪽은 마지막에 전체를 반전한다.
+        # (몸만 먼저 반전하면 얼굴이 여전히 왼쪽을 봐서 어색해진다.)
         p.ell((8, 28, 30, 44), MUZZLE)          # 주둥이
         p.ell((14, 31, 22, 39), INK)            # 코
         p.pie((15, 10, 49, 44), 90, 270, MUZZLE)  # 얼굴 하단 밝게
@@ -154,6 +152,8 @@ def pico(direction="down", frame=0):
     p.rr((13, 25, 51, 31), 3.2, AMBER_D)
     p.ell((28, 1, 36, 9), CREAM)
     p.pie((18, 7, 30, 22), 200, 320, "#F2BC63")
+    if direction == "right":
+        im = ImageOps.mirror(im)
     return down(im, w, h)
 
 
@@ -191,6 +191,8 @@ def camper(variant=0, direction="down", frame=0, sitting=False):
         p.ell((36, 28, 40, 32), INK)
         p.ell((24, 8, 42, 22), "#B4553A")  # 모자
         p.rr((22, 19, 46, 23), 2, "#8E3F2A")
+        if direction == "right":
+            im = ImageOps.mirror(im)
         return down(im, w, h)
 
     # legs
@@ -216,14 +218,15 @@ def camper(variant=0, direction="down", frame=0, sitting=False):
         p.rect((14, 10, 50, 26), hair)
         p.ell((15, 8, 49, 34), hair)
     elif direction in ("left", "right"):
-        if direction == "right":
-            im = ImageOps.mirror(im)
-            p = Pen(im, ss)
-        p.pie((14, 8, 50, 42), 90, 270, hair)
-        p.ell((14, 10, 48, 30), hair)
-        p.ell((24, 24, 30, 31), INK)
+        # 옆모습은 왼쪽을 보고 그린 뒤, 오른쪽은 마지막에 전체를 반전한다.
+        # 얼굴 앞(왼쪽)은 살색으로 남기고 머리는 위쪽과 뒤쪽만 덮는다.
+        p.pie((14, 8, 50, 42), 180, 360, hair)   # 정수리·앞머리
+        p.ell((34, 9, 50, 39), hair)             # 뒤통수
+        p.ell((31, 26, 40, 36), skin)            # 귀
+        p.ell((33, 28, 38, 33), "#D9A882")
+        p.ell((24, 24, 30, 31), INK)             # 눈
         p.ell((25, 25, 27, 27.5), CREAM)
-        p.ell((16, 28, 22, 32), "#D9A882")  # 코
+        p.ell((16, 28, 22, 32), "#D9A882")       # 코
         p.pline([(22, 36), (28, 36)], "#8E5A48", 1.2)
     else:
         p.pie((14, 6, 50, 38), 180, 360, hair)
@@ -238,6 +241,8 @@ def camper(variant=0, direction="down", frame=0, sitting=False):
         p.pie((15, 0, 49, 26), 180, 360, "#4C6B58")
         p.rr((13, 18, 51, 23), 2, "#3A5346")
         p.ell((28, 13, 36, 20), "#4C6B58")
+    if direction == "right":
+        im = ImageOps.mirror(im)
     return down(im, w, h)
 
 
