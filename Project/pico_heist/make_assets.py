@@ -108,13 +108,14 @@ def vignette(im, color=(8, 16, 12), a=120, inn=0.55):
     im.alpha_composite(layer)
 
 
-def dirt_road(d, pts, ss, shade=1.0):
+def dirt_road(d, pts, ss, shade=1.0, width_scale=1.0):
     """세 맵에서 공유하는 갈색 흙길 — 1번 맵의 팔레트/폭을 그대로 쓴다."""
     pl = [(x * ss, y * ss) for (x, y) in pts]
     for rgb, width in (((176, 150, 108), 88), ((195, 170, 126), 64),
                        ((204, 181, 138), 34)):
         col = tuple(min(255, int(c * shade)) for c in rgb) + (255,)
-        d.line(pl, fill=col, width=width * ss, joint="curve")
+        d.line(pl, fill=col, width=max(1, int(width * width_scale * ss)),
+               joint="curve")
 
 
 def bg_forest():
@@ -171,10 +172,10 @@ def bg_lake():
         rx, ry = rnd.uniform(60, 180) * ss, rnd.uniform(30, 90) * ss
         col = rnd.choice([(134, 128, 84), (156, 148, 100), (122, 118, 80)])
         d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=col + (110,))
-    # 1번 맵에서 이어진 갈색 흙길 — 왼쪽에서 들어와 호숫가를 크게 돌아
-    # 왼쪽 출구 게이트(110,420)로 다시 나간다. (물보다 아래에 그려 해변에서 끊긴다)
-    dirt_road(d, [(0, 380), (260, 340), (560, 330), (820, 350), (960, 400),
-                  (960, 440), (780, 440), (520, 430), (280, 420), (110, 420)], ss)
+    # 1번 맵에서 이어진 갈색 흙길 — 화면을 가로로 곧게 지나고,
+    # 중간 부두 입구(880,400)에서 아래 낚시배 쪽으로만 갈라진다 (ㅜ 모양).
+    dirt_road(d, [(0, 400), (1280, 400)], ss)
+    dirt_road(d, [(880, 400), (880, 470)], ss, width_scale=0.68)
     # 물
     d.rectangle([0, 468 * ss, W * ss, H * ss], fill=(58, 82, 96, 255))
     for i in range(46):
