@@ -311,7 +311,7 @@ def glow(size, color, a=90):
 
 
 def bg_tent():
-    """텐트 안 — 캔버스 벽, 깃발·전등 줄, 수납 포켓, 패턴 매트, 랜턴 빛."""
+    """텐트 안 — 캔버스 벽, 깃발·전등·별 스티커, 수납 포켓, 술 달린 패턴 매트."""
     ss = 2
     im = Image.new("RGBA", (W * ss, H * ss), (74, 58, 44, 255))
     d = ImageDraw.Draw(im)
@@ -356,6 +356,20 @@ def bg_tent():
                   fill=(255, 226, 150, 255))
         d.ellipse([(x - 3) * ss, (y + 12) * ss, (x + 1) * ss, (y + 17) * ss],
                   fill=(255, 250, 224, 255))
+    # ---- 천 벽 스티커 (깃발 줄 위 빈 틈)
+    for sx, sy, r in ((286, 24, 8), (982, 26, 7)):
+        pts = []
+        for k in range(10):
+            ang = math.pi / 2 + k * math.pi / 5
+            rad = r if k % 2 == 0 else r * 0.45
+            pts.append(((sx + math.cos(ang) * rad) * ss,
+                        (sy - math.sin(ang) * rad) * ss))
+        d.polygon(pts, fill=(232, 190, 112, 215))
+    # 오른쪽 벽 초승달 스티커
+    d.ellipse([(1172 * ss, 14 * ss), (1196 * ss, 38 * ss)],
+              fill=(236, 198, 122, 220))
+    d.ellipse([(1178 * ss, 11 * ss), (1200 * ss, 33 * ss)],
+              fill=(82, 60, 45, 255))
     # 바닥 매트
     d.rectangle([0, 150 * ss, W * ss, H * ss], fill=(104, 86, 64, 255))
     d.line([0, 150 * ss, W * ss, 150 * ss], fill=(132, 110, 82, 235), width=4 * ss)
@@ -380,6 +394,21 @@ def bg_tent():
                (cx * ss, (cy + 40) * ss), ((cx - 10) * ss, (cy + 10) * ss),
                ((cx - 40) * ss, cy * ss), ((cx - 10) * ss, (cy - 10) * ss)],
               fill=(166, 130, 94, 95))
+    # 러그 끝술 + 옆면 작은 마름모
+    for x in (348, 972):
+        for y in range(352, 628, 24):
+            d.line([(x * ss, y * ss), ((x - 9) * ss, (y + 6) * ss)],
+                   fill=(190, 150, 108, 120), width=2 * ss)
+            d.line([(x * ss, y * ss), ((x + 9) * ss, (y + 6) * ss)],
+                   fill=(190, 150, 108, 120), width=2 * ss)
+    for x in (342, 978):
+        d.polygon([(x * ss, 474 * ss), ((x + 8) * ss, 486 * ss),
+                   (x * ss, 498 * ss), ((x - 8) * ss, 486 * ss)],
+                  fill=(176, 138, 100, 150))
+    # 문 앞 바닥 스크래치 (오래 캠핑한 흔적)
+    for x, y in ((556, 690), (724, 684)):
+        d.arc([(x - 18) * ss, (y - 7) * ss, (x + 18) * ss, (y + 7) * ss],
+              200, 340, fill=(74, 58, 44, 95), width=2 * ss)
     # ---- 좌우 벽 수납 포켓 (걷지 못하는 벽면 안쪽에만 걸어 둔다)
     for bx in (96, 1184):
         d.rounded_rectangle([(bx - 42) * ss, 56 * ss, (bx + 42) * ss, 136 * ss],
