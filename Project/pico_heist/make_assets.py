@@ -380,27 +380,27 @@ def bg_tent():
                (cx * ss, (cy + 40) * ss), ((cx - 10) * ss, (cy + 10) * ss),
                ((cx - 40) * ss, cy * ss), ((cx - 10) * ss, (cy - 10) * ss)],
               fill=(166, 130, 94, 95))
-    # ---- 벽 수납 포켓 (좌우, 이음선 아래에 걸려 있음)
-    for bx in (196, 1084):
-        d.rounded_rectangle([(bx - 52) * ss, 116 * ss, (bx + 52) * ss, 196 * ss],
-                            8 * ss, fill=(64, 50, 38, 255),
+    # ---- 좌우 벽 수납 포켓 (걷지 못하는 벽면 안쪽에만 걸어 둔다)
+    for bx in (96, 1184):
+        d.rounded_rectangle([(bx - 42) * ss, 56 * ss, (bx + 42) * ss, 136 * ss],
+                            7 * ss, fill=(64, 50, 38, 255),
                             outline=(110, 88, 64, 255), width=2 * ss)
-        d.line([(bx - 44) * ss, 152 * ss, (bx + 44) * ss, 152 * ss],
+        d.line([(bx - 34) * ss, 92 * ss, (bx + 34) * ss, 92 * ss],
                fill=(96, 76, 56, 255), width=2 * ss)
-        for x0, x1 in ((bx - 38, bx - 8), (bx + 8, bx + 38)):
-            d.rounded_rectangle([x0 * ss, 160 * ss, x1 * ss, 190 * ss],
+        for x0, x1 in ((bx - 30, bx - 6), (bx + 6, bx + 30)):
+            d.rounded_rectangle([x0 * ss, 100 * ss, x1 * ss, 132 * ss],
                                 4 * ss, fill=(92, 72, 54, 255))
-        d.rounded_rectangle([(bx - 30) * ss, 138 * ss, (bx - 16) * ss, 166 * ss],
+        d.rounded_rectangle([(bx - 24) * ss, 78 * ss, (bx - 12) * ss, 106 * ss],
                             2 * ss, fill=(196, 168, 110, 255))
-        d.rounded_rectangle([(bx + 10) * ss, 140 * ss, (bx + 26) * ss, 164 * ss],
+        d.rounded_rectangle([(bx + 8) * ss, 80 * ss, (bx + 22) * ss, 104 * ss],
                             2 * ss, fill=(124, 148, 118, 255))
-    # ---- 벽에 걸린 지도 메모
-    d.rounded_rectangle([452 * ss, 120 * ss, 564 * ss, 188 * ss], 4 * ss,
+    # ---- 왼쪽 벽 지도 메모 (포켓 위, 역시 벽면 안쪽)
+    d.rounded_rectangle([52 * ss, 8 * ss, 140 * ss, 48 * ss], 3 * ss,
                         fill=(168, 142, 104, 255), outline=(88, 68, 48, 255),
                         width=2 * ss)
-    d.line([(470 * ss, 148 * ss), (502 * ss, 136 * ss), (534 * ss, 150 * ss),
-            (548 * ss, 140 * ss)], fill=(110, 86, 62, 220), width=2 * ss)
-    d.ellipse([(504 * ss, 126 * ss), (512 * ss, 134 * ss)],
+    d.line([(62 * ss, 30 * ss), (86 * ss, 20 * ss), (110 * ss, 32 * ss),
+            (130 * ss, 24 * ss)], fill=(110, 86, 62, 220), width=2 * ss)
+    d.ellipse([(92 * ss, 12 * ss), (100 * ss, 20 * ss)],
               fill=(190, 88, 72, 255))
     # 지퍼 출입구 (아래 가운데)
     d.rectangle([594 * ss, 656 * ss, 686 * ss, H * ss], fill=(44, 35, 26, 255))
