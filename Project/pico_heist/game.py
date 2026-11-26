@@ -126,6 +126,11 @@ PROP_SPECS = {
     "prop_grill":      dict(solid=(60, 22), cover=None, pad=2, shadow=64),
     "prop_sleepbag":   dict(solid=(0, 0), cover=None, pad=2, shadow=118),
     "prop_sleeper":    dict(solid=(0, 0), cover=None, pad=2, shadow=0),
+    # 텐트 장식 소품 — 충돌·엄폐·은신 기능 없이 보이는 것만 한다
+    "prop_backpack":   dict(solid=(0, 0), cover=None, pad=1, shadow=44),
+    "prop_rollmat":    dict(solid=(0, 0), cover=None, pad=1, shadow=80),
+    "prop_mug":        dict(solid=(0, 0), cover=None, pad=1, shadow=24),
+    "prop_book":       dict(solid=(0, 0), cover=None, pad=1, shadow=36),
 }
 
 

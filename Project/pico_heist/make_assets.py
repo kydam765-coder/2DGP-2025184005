@@ -311,7 +311,7 @@ def glow(size, color, a=90):
 
 
 def bg_tent():
-    """텐트 안 — 캔버스 벽과 바닥 매트, 가운데 랜턴 빛."""
+    """텐트 안 — 캔버스 벽, 깃발·전등 줄, 수납 포켓, 패턴 매트, 랜턴 빛."""
     ss = 2
     im = Image.new("RGBA", (W * ss, H * ss), (74, 58, 44, 255))
     d = ImageDraw.Draw(im)
@@ -327,6 +327,35 @@ def bg_tent():
     # 천 이음선
     d.line([0, 104 * ss, W * ss, 104 * ss], fill=(52, 40, 30, 200), width=3 * ss)
     d.line([0, 108 * ss, W * ss, 108 * ss], fill=(116, 96, 74, 90), width=1 * ss)
+
+    def sag(x, top, drop, x0=150, x1=1130):
+        """두 지점 사이에 늘어진 줄의 y 좌표."""
+        t = (x - x0) / (x1 - x0)
+        return top + drop * (1.0 - (2.0 * t - 1.0) ** 2)
+
+    # ---- 깃발 줄 (천장)
+    flag_colors = [(196, 88, 72, 235), (232, 176, 86, 235),
+                   (90, 132, 104, 235), (116, 104, 152, 235)]
+    d.line([(x * ss, sag(x, 44, 26) * ss) for x in range(150, 1131, 18)],
+           fill=(46, 36, 28, 255), width=2 * ss, joint="curve")
+    for i, x in enumerate(range(166, 1111, 62)):
+        y1, y2 = sag(x, 44, 26), sag(x + 44, 44, 26)
+        d.polygon([(x * ss, y1 * ss), ((x + 44) * ss, y2 * ss),
+                   ((x + 22) * ss, (y1 + y2) / 2 * ss + 26 * ss)],
+                  fill=flag_colors[i % len(flag_colors)])
+    # ---- 전등 줄 (깃발 아래, 따뜻한 전구)
+    d.line([(x * ss, sag(x, 82, 42) * ss) for x in range(150, 1131, 18)],
+           fill=(44, 34, 26, 255), width=3 * ss, joint="curve")
+    for x in range(178, 1110, 78):
+        y = sag(x, 82, 42)
+        d.line([(x * ss, y * ss), (x * ss, (y + 11) * ss)],
+               fill=(44, 34, 26, 255), width=2 * ss)
+        d.ellipse([(x - 11) * ss, (y + 8) * ss, (x + 11) * ss, (y + 30) * ss],
+                  fill=(255, 206, 120, 60))
+        d.ellipse([(x - 6) * ss, (y + 10) * ss, (x + 6) * ss, (y + 24) * ss],
+                  fill=(255, 226, 150, 255))
+        d.ellipse([(x - 3) * ss, (y + 12) * ss, (x + 1) * ss, (y + 17) * ss],
+                  fill=(255, 250, 224, 255))
     # 바닥 매트
     d.rectangle([0, 150 * ss, W * ss, H * ss], fill=(104, 86, 64, 255))
     d.line([0, 150 * ss, W * ss, 150 * ss], fill=(132, 110, 82, 235), width=4 * ss)
@@ -337,6 +366,42 @@ def bg_tent():
     for y in range(352, 640, 26):
         d.line([352 * ss, y * ss, 968 * ss, y * ss], fill=(128, 98, 72, 110),
                width=2 * ss)
+    # 러그 테두리 바느질 + 가운데 별 무늬
+    d.rounded_rectangle([356 * ss, 352 * ss, 964 * ss, 624 * ss], 20 * ss,
+                        outline=(178, 140, 102, 140), width=2 * ss)
+    for x in range(372, 956, 28):
+        d.line([(x * ss, 346 * ss), ((x + 10) * ss, 356 * ss)],
+               fill=(190, 150, 108, 120), width=2 * ss)
+        d.line([(x * ss, 630 * ss), ((x + 10) * ss, 640 * ss)],
+               fill=(190, 150, 108, 120), width=2 * ss)
+    cx, cy = 640, 492
+    d.polygon([(cx * ss, (cy - 40) * ss), ((cx + 10) * ss, (cy - 10) * ss),
+               ((cx + 40) * ss, cy * ss), ((cx + 10) * ss, (cy + 10) * ss),
+               (cx * ss, (cy + 40) * ss), ((cx - 10) * ss, (cy + 10) * ss),
+               ((cx - 40) * ss, cy * ss), ((cx - 10) * ss, (cy - 10) * ss)],
+              fill=(166, 130, 94, 95))
+    # ---- 벽 수납 포켓 (좌우, 이음선 아래에 걸려 있음)
+    for bx in (196, 1084):
+        d.rounded_rectangle([(bx - 52) * ss, 116 * ss, (bx + 52) * ss, 196 * ss],
+                            8 * ss, fill=(64, 50, 38, 255),
+                            outline=(110, 88, 64, 255), width=2 * ss)
+        d.line([(bx - 44) * ss, 152 * ss, (bx + 44) * ss, 152 * ss],
+               fill=(96, 76, 56, 255), width=2 * ss)
+        for x0, x1 in ((bx - 38, bx - 8), (bx + 8, bx + 38)):
+            d.rounded_rectangle([x0 * ss, 160 * ss, x1 * ss, 190 * ss],
+                                4 * ss, fill=(92, 72, 54, 255))
+        d.rounded_rectangle([(bx - 30) * ss, 138 * ss, (bx - 16) * ss, 166 * ss],
+                            2 * ss, fill=(196, 168, 110, 255))
+        d.rounded_rectangle([(bx + 10) * ss, 140 * ss, (bx + 26) * ss, 164 * ss],
+                            2 * ss, fill=(124, 148, 118, 255))
+    # ---- 벽에 걸린 지도 메모
+    d.rounded_rectangle([452 * ss, 120 * ss, 564 * ss, 188 * ss], 4 * ss,
+                        fill=(168, 142, 104, 255), outline=(88, 68, 48, 255),
+                        width=2 * ss)
+    d.line([(470 * ss, 148 * ss), (502 * ss, 136 * ss), (534 * ss, 150 * ss),
+            (548 * ss, 140 * ss)], fill=(110, 86, 62, 220), width=2 * ss)
+    d.ellipse([(504 * ss, 126 * ss), (512 * ss, 134 * ss)],
+              fill=(190, 88, 72, 255))
     # 지퍼 출입구 (아래 가운데)
     d.rectangle([594 * ss, 656 * ss, 686 * ss, H * ss], fill=(44, 35, 26, 255))
     d.polygon([(594 * ss, 656 * ss), (640 * ss, 620 * ss), (686 * ss, 656 * ss)],
@@ -345,6 +410,8 @@ def bg_tent():
         d.line([x * ss, 660 * ss, x * ss, H * ss], fill=(92, 76, 58, 190),
                width=2 * ss)
     d.line([0, 104 * ss, 40 * ss, 150 * ss], fill=(60, 46, 34, 200), width=3 * ss)
+    d.line([(606 * ss, 712 * ss), (674 * ss, 712 * ss)],
+           fill=(150, 124, 92, 170), width=2 * ss)
     # 랜턴 빛
     im.alpha_composite(radial(W * ss, H * ss, (255, 214, 146), 54, 0, 0.30, 0.30))
     grain(im, (40, 30, 22), 700, size=(1, 3), alpha=(14, 46), ss=ss)

@@ -478,6 +478,69 @@ def grill():
     return down(im, w, h)
 
 
+def backpack():
+    """텐트 구석에 놓인 배낭 — 장식용."""
+    w, h, ss = 58, 70, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    p.rr((14, 4, 22, 42), 3, "#2F4A39")       # 어깨끈
+    p.rr((36, 4, 44, 42), 3, "#2F4A39")
+    p.rr((14, 6, 44, 18), 5, "#58785D")       # 말아 올린 입구
+    p.rr((8, 14, 50, 66), 10, "#3E5B44", "#223B2C", 1.2)
+    p.rr((12, 18, 46, 42), 8, "#4C6B52")
+    p.rr((10, 30, 48, 44), 5, "#2A4030")      # 덮개
+    p.rr((24, 34, 34, 42), 2, "#D9B36A")      # 버클
+    p.rr((18, 50, 40, 62), 4, "#365341")      # 앞주머니
+    p.pline([(22, 56), (36, 56)], "#8FA070", 1.2)
+    return down(im, w, h)
+
+
+def rollmat():
+    """말아 놓은 여행 매트 — 장식용."""
+    w, h, ss = 100, 34, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    p.ell((6, 8, 94, 30), "#5C6C44")
+    p.ell((10, 10, 90, 26), "#7D9060")
+    for x in (30, 54, 74):
+        p.pline([(x, 11), (x, 25)], "#5C6C44", 1.4)
+    p.rr((24, 8, 32, 28), 2, "#3E4A32")       # 묶는 끈
+    p.rr((64, 8, 72, 28), 2, "#3E4A32")
+    p.ell((82, 9, 98, 29), "#4E5E3E")         # 말린 단면
+    p.ell((85, 12, 95, 26), "#8FA070")
+    p.ell((88, 15, 92, 23), "#4E5E3E")
+    return down(im, w, h)
+
+
+def mug():
+    """따뜻한 음료가 담긴 머그컵 — 장식용."""
+    w, h, ss = 38, 40, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    p.arc((23, 12, 35, 30), 270, 90, "#D9D2BE", 2)   # 손잡이
+    p.pline([(12, 8), (10, 3)], "#D8D2C0", 1.2)      # 김
+    p.pline([(20, 8), (22, 2)], "#D8D2C0", 1.2)
+    p.rr((6, 12, 28, 36), 5, "#C4653F", "#8A402A", 1)
+    p.ell((6, 10, 28, 18), "#E8E1CB")
+    p.ell((9, 12, 25, 16), "#6B4E32")
+    return down(im, w, h)
+
+
+def book():
+    """공책과 연필 — 장식용."""
+    w, h, ss = 48, 30, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    p.rr((4, 10, 44, 26), 3, "#3E6E6A", "#254A47", 1)
+    p.rr((9, 12, 40, 22), 2, "#EDE4CF")
+    p.pline([(11, 16), (38, 16)], "#B9B09A", 1)
+    p.pline([(11, 20), (32, 20)], "#B9B09A", 1)
+    p.rr((4, 10, 10, 26), 2, "#254A47")        # 책등
+    p.pline([(16, 26), (40, 8)], "#E9A63F", 2)  # 연필
+    p.poly([(40, 8), (45, 5), (41, 11)], "#D9B36A")
+    return down(im, w, h)
+
+
 def sleepbag():
     """텐트 안 침낭 (가로로 눕힌 형태)."""
     w, h, ss = 132, 68, 3
@@ -680,6 +743,10 @@ def build_all():
     save(speaker(), "prop_speaker.png")
     save(bench(), "prop_bench.png")
     save(grill(), "prop_grill.png")
+    save(backpack(), "prop_backpack.png")
+    save(rollmat(), "prop_rollmat.png")
+    save(mug(), "prop_mug.png")
+    save(book(), "prop_book.png")
     save(sleepbag(), "prop_sleepbag.png")
     save(sleeper(), "prop_sleeper.png")
 
