@@ -131,6 +131,9 @@ PROP_SPECS = {
     "prop_rollmat":    dict(solid=(88, 24), cover=None, pad=1, shadow=80),
     "prop_mug":        dict(solid=(24, 28), cover=None, pad=1, shadow=24),
     "prop_book":       dict(solid=(36, 20), cover=None, pad=1, shadow=36),
+    "prop_stool":      dict(solid=(40, 34), cover=None, pad=1, shadow=40),
+    "prop_rope":       dict(solid=(60, 20), cover=None, pad=1, shadow=60),
+    "prop_firstaid":   dict(solid=(44, 28), cover=None, pad=1, shadow=44),
 }
 
 

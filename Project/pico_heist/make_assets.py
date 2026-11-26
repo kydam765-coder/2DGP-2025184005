@@ -373,10 +373,6 @@ def bg_tent():
     # 바닥 매트
     d.rectangle([0, 150 * ss, W * ss, H * ss], fill=(104, 86, 64, 255))
     d.line([0, 150 * ss, W * ss, 150 * ss], fill=(132, 110, 82, 235), width=4 * ss)
-    # 매트 바깥 바닥 결 (러그가 덮는 가운데는 나중에 가려진다)
-    for x in range(-60, W + 60, 26):
-        d.line([(x * ss, 150 * ss), ((x + 150) * ss, H * ss)],
-               fill=(122, 100, 76, 48), width=2 * ss)
     # 바닥 첫 줄 지그재그 테두리
     for x in range(0, W, 24):
         d.line([(x * ss, 156 * ss), ((x + 12) * ss, 166 * ss),

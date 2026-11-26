@@ -541,6 +541,45 @@ def book():
     return down(im, w, h)
 
 
+def stool():
+    """접이식 캠핑 의자 — 바닥에 놓이는 소품."""
+    w, h, ss = 52, 48, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    p.pline([(12, 18), (40, 44)], "#5E4A35", 3)   # 접힌 다리
+    p.pline([(40, 18), (12, 44)], "#5E4A35", 3)
+    p.rr((6, 10, 46, 24), 5, "#3E6E6A", "#254A47", 1)
+    p.rr((10, 13, 42, 20), 3, "#4C807A")
+    p.pline([(11, 24), (41, 24)], "#254A47", 1.2)
+    return down(im, w, h)
+
+
+def rope_coil():
+    """말아 놓은 로프 — 바닥에 놓이는 소품."""
+    w, h, ss = 70, 30, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    p.ell((6, 6, 64, 28), "#B99A6B")
+    p.ell((12, 9, 58, 25), "#8C7A54")
+    p.ell((18, 12, 52, 22), "#B99A6B")
+    p.ell((24, 14, 46, 20), "#8C7A54")
+    p.pline([(58, 16), (68, 22), (64, 28)], "#B99A6B", 2)
+    return down(im, w, h)
+
+
+def firstaid():
+    """구급 상자 — 바닥에 놓이는 소품."""
+    w, h, ss = 54, 40, 3
+    im = Image.new("RGBA", (w * ss, h * ss), (0, 0, 0, 0))
+    p = Pen(im, ss)
+    p.rr((20, 5, 34, 14), 3, "#8A6743")           # 손잡이
+    p.rr((6, 10, 48, 38), 5, "#E8E1CB", "#B9B09A", 1)
+    p.rr((10, 14, 16, 20), 2, "#B9B09A")          # 잠금쇠
+    p.rr((24, 16, 30, 32), 2, "#C0563C")          # 십자 표시
+    p.rr((18, 22, 36, 28), 2, "#C0563C")
+    return down(im, w, h)
+
+
 def sleepbag():
     """텐트 안 침낭 (가로로 눕힌 형태)."""
     w, h, ss = 132, 68, 3
@@ -747,6 +786,9 @@ def build_all():
     save(rollmat(), "prop_rollmat.png")
     save(mug(), "prop_mug.png")
     save(book(), "prop_book.png")
+    save(stool(), "prop_stool.png")
+    save(rope_coil(), "prop_rope.png")
+    save(firstaid(), "prop_firstaid.png")
     save(sleepbag(), "prop_sleepbag.png")
     save(sleeper(), "prop_sleeper.png")
 
