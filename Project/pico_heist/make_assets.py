@@ -373,6 +373,14 @@ def bg_tent():
     # 바닥 매트
     d.rectangle([0, 150 * ss, W * ss, H * ss], fill=(104, 86, 64, 255))
     d.line([0, 150 * ss, W * ss, 150 * ss], fill=(132, 110, 82, 235), width=4 * ss)
+    # 매트 바깥 바닥 결 (러그가 덮는 가운데는 나중에 가려진다)
+    for x in range(-60, W + 60, 26):
+        d.line([(x * ss, 150 * ss), ((x + 150) * ss, H * ss)],
+               fill=(122, 100, 76, 48), width=2 * ss)
+    # 바닥 첫 줄 지그재그 테두리
+    for x in range(0, W, 24):
+        d.line([(x * ss, 156 * ss), ((x + 12) * ss, 166 * ss),
+                ((x + 24) * ss, 156 * ss)], fill=(154, 126, 94, 110), width=2 * ss)
     d.rounded_rectangle([320 * ss, 320 * ss, 1000 * ss, 656 * ss], 32 * ss,
                         fill=(126, 96, 72, 255))
     d.rounded_rectangle([342 * ss, 338 * ss, 978 * ss, 638 * ss], 26 * ss,
@@ -409,6 +417,26 @@ def bg_tent():
     for x, y in ((556, 690), (724, 684)):
         d.arc([(x - 18) * ss, (y - 7) * ss, (x + 18) * ss, (y + 7) * ss],
               200, 340, fill=(74, 58, 44, 95), width=2 * ss)
+    # 문 → 음식 쪽으로 이어진 희미한 발자국 (바닥 무늬, 충돌 없음)
+    for i in range(9):
+        t = i / 8
+        fx = 640 + 180 * t + (14 if i % 2 else -14)
+        fy = 636 - 300 * t
+        d.ellipse([(fx - 9) * ss, (fy - 5) * ss, (fx + 9) * ss, (fy + 5) * ss],
+                  fill=(96, 74, 54, 72))
+    # 왼쪽 곁매트 (쿨러·머그 주변)
+    d.rounded_rectangle([172 * ss, 556 * ss, 316 * ss, 636 * ss], 10 * ss,
+                        fill=(118, 92, 68, 255))
+    d.rounded_rectangle([180 * ss, 564 * ss, 308 * ss, 628 * ss], 8 * ss,
+                        fill=(134, 106, 80, 255))
+    for y in range(572, 628, 14):
+        d.line([188 * ss, y * ss, 300 * ss, y * ss],
+               fill=(112, 86, 64, 120), width=2 * ss)
+    # 바닥 여기저기 작은 알갱이
+    for x, y, r in ((214, 470, 3), (268, 530, 2), (1108, 588, 3),
+                    (1042, 620, 2), (196, 312, 2), (1096, 360, 3)):
+        d.ellipse([(x - r) * ss, (y - r) * ss, (x + r) * ss, (y + r) * ss],
+                  fill=(152, 124, 94, 110))
     # ---- 좌우 벽 수납 포켓 (걷지 못하는 벽면 안쪽에만 걸어 둔다)
     for bx in (96, 1184):
         d.rounded_rectangle([(bx - 42) * ss, 56 * ss, (bx + 42) * ss, 136 * ss],
