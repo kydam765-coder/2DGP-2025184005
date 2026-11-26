@@ -37,8 +37,8 @@ PICKUP_NOISE = 6.0
 
 # ---- 자고 있는 사람
 SLEEP_NEAR = 260.0      # 이 안으로 들어가면 게이지가 오른다 (음식 166px → 반드시 안쪽)
-RISE_SLEEP = 46.0       # 자는 사람 근접 기본 %/s
-SLEEP_BOOST = 2.0       # d=0 이면 RISE_SLEEP * 3.0
+RISE_SLEEP = 40.0       # 자는 사람 근접 기본 %/s (기존 46에서 완만하게)
+SLEEP_BOOST = 1.7       # d=0 이면 RISE_SLEEP * 2.7 (기존 3.0배에서 완만하게)
 
 # ---- 텐트
 DOOR_LOCK = 0.6         # 들어가고 나온 직후 출입구 재입력 방지
